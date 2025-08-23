@@ -1,10 +1,6 @@
 use computor_v2::{Context, LineParser, ParsedLine};
 
-use rustyline::{
-    error::ReadlineError,
-    DefaultEditor,
-    Result as RustylineResult
-};
+use rustyline::{error::ReadlineError, DefaultEditor, Result as RustylineResult};
 
 fn main() -> RustylineResult<()> {
     let mut reader = DefaultEditor::new()?;
@@ -23,7 +19,7 @@ fn main() -> RustylineResult<()> {
 
                 match parser.parse(&line) {
                     Ok(ParsedLine::Assignment { name, value }) => {
-                        println!("{} = {}", name, value);
+                        println!("{}", value);
                         context.assign(name, value);
                     }
                     Ok(ParsedLine::Query { expression }) => {
