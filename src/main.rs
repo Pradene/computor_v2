@@ -1,8 +1,15 @@
-use rustyline::error::ReadlineError;
-use rustyline::{DefaultEditor, Result};
+use computor_v2::{Context, LineParser, ParsedLine};
 
-fn main() -> Result<()> {
+use rustyline::{
+    error::ReadlineError,
+    DefaultEditor,
+    Result as RustylineResult
+};
+
+fn main() -> RustylineResult<()> {
     let mut reader = DefaultEditor::new()?;
+    let mut context = Context::new();
+    let parser = LineParser::new();
 
     loop {
         match reader.readline("> ") {
@@ -10,8 +17,25 @@ fn main() -> Result<()> {
                 if line.clone() == format!("quit") {
                     break;
                 }
+                if line.trim().is_empty() {
+                    continue;
+                }
+
+                match parser.parse(&line) {
+                    Ok(ParsedLine::Assignment { name, value }) => {
+                        println!("{} = {}", name, value);
+                        context.assign(name, value);
+                    }
+                    Ok(ParsedLine::Query { expression }) => {
+                        match context.evaluate_query(&expression) {
+                            Ok(result) => println!("{}", result),
+                            Err(e) => println!("Evaluation error: {}", e),
+                        }
+                    }
+                    Err(e) => println!("Parse error: {}", e),
+                }
+
                 reader.add_history_entry(line.as_str())?;
-                println!("Line: {}", line);
             }
             Err(ReadlineError::Interrupted) => {
                 println!("Ctrl-C");

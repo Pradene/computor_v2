@@ -1,0 +1,151 @@
+use std::fmt;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    Variable(Expression),
+    Function {
+        params: Vec<String>,
+        body: Expression,
+    },
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Variable(expr) => write!(f, "{}", expr),
+            Value::Function { body, .. } => {
+                write!(f, "{}", body)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expression {
+    Number(f64),
+    Variable(String),
+    FunctionCall {
+        name: String,
+        args: Vec<Expression>,
+    },
+    BinaryOp {
+        left: Box<Expression>,
+        op: BinaryOperator,
+        right: Box<Expression>,
+    },
+    UnaryOp {
+        op: UnaryOperator,
+        operand: Box<Expression>,
+    },
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expression::Number(n) => {
+                if n.fract() == 0.0 {
+                    write!(f, "{}", *n as i64)
+                } else {
+                    write!(f, "{}", n)
+                }
+            }
+            Expression::Variable(name) => write!(f, "{}", name),
+            Expression::FunctionCall { name, args } => {
+                write!(f, "{}(", name)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ")")
+            }
+            Expression::BinaryOp { left, op, right } => {
+                let needs_left_parens = match (op, left.as_ref()) {
+                    (
+                        BinaryOperator::Multiply | BinaryOperator::Divide,
+                        Expression::BinaryOp {
+                            op: BinaryOperator::Add | BinaryOperator::Subtract,
+                            ..
+                        },
+                    ) => true,
+                    (BinaryOperator::Power, Expression::BinaryOp { .. }) => true,
+                    _ => false,
+                };
+
+                let needs_right_parens = match (op, right.as_ref()) {
+                    (
+                        BinaryOperator::Subtract,
+                        Expression::BinaryOp {
+                            op: BinaryOperator::Add | BinaryOperator::Subtract,
+                            ..
+                        },
+                    ) => true,
+                    (
+                        BinaryOperator::Divide,
+                        Expression::BinaryOp {
+                            op: BinaryOperator::Multiply | BinaryOperator::Divide,
+                            ..
+                        },
+                    ) => true,
+                    (BinaryOperator::Power, Expression::BinaryOp { .. }) => true,
+                    _ => false,
+                };
+
+                if needs_left_parens {
+                    write!(f, "({})", left)?;
+                } else {
+                    write!(f, "{}", left)?;
+                }
+
+                write!(f, " {} ", op)?;
+
+                if needs_right_parens {
+                    write!(f, "({})", right)
+                } else {
+                    write!(f, "{}", right)
+                }
+            }
+            Expression::UnaryOp { op, operand } => match operand.as_ref() {
+                Expression::BinaryOp { .. } => write!(f, "{}({})", op, operand),
+                _ => write!(f, "{}{}", op, operand),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Power,
+}
+
+impl fmt::Display for BinaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinaryOperator::Add => write!(f, "+"),
+            BinaryOperator::Subtract => write!(f, "-"),
+            BinaryOperator::Multiply => write!(f, "*"),
+            BinaryOperator::Divide => write!(f, "/"),
+            BinaryOperator::Power => write!(f, "^"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOperator {
+    Plus,
+    Minus,
+}
+
+impl fmt::Display for UnaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnaryOperator::Plus => write!(f, "+"),
+            UnaryOperator::Minus => write!(f, "-"),
+        }
+    }
+}
