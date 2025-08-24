@@ -6,6 +6,7 @@ pub enum ParseError {
     UnexpectedToken(String),
     UnexpectedEof,
     InvalidNumber(String),
+    InvalidMatrix(String),
 }
 
 #[derive(Debug)]
@@ -28,6 +29,7 @@ impl fmt::Display for ParseError {
             ParseError::UnexpectedToken(token) => write!(f, "Unexpected token: {}", token),
             ParseError::UnexpectedEof => write!(f, "Unexpected end of input"),
             ParseError::InvalidNumber(num) => write!(f, "Invalid number: {}", num),
+            ParseError::InvalidMatrix(msg) => write!(f, "Invalid matrix: {}", msg),
         }
     }
 }
