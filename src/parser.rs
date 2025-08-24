@@ -371,7 +371,7 @@ impl LineParser {
         // consume ']'
         *pos += 1;
 
-        let matrix = Matrix::new(rows).map_err(|e| ParseError::InvalidSyntax(e))?;
+        let matrix = Matrix::from_numbers(rows).map_err(|e| ParseError::InvalidSyntax(e))?;
 
         Ok(Expression::Matrix(matrix))
     }

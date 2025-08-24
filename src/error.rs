@@ -17,6 +17,8 @@ pub enum EvaluationError {
     WrongArgumentCount { expected: usize, got: usize },
     DivisionByZero,
     InvalidOperation(String),
+    UndefinedOperation,
+    InvalidMatrix(String),
 }
 
 impl fmt::Display for ParseError {
@@ -43,7 +45,9 @@ impl fmt::Display for EvaluationError {
                 write!(f, "Expected {} arguments, got {}", expected, got)
             }
             EvaluationError::DivisionByZero => write!(f, "Division by zero"),
+            EvaluationError::UndefinedOperation => write!(f, "Undefined operation"),
             EvaluationError::InvalidOperation(msg) => write!(f, "Invalid operation: {}", msg),
+            EvaluationError::InvalidMatrix(msg) => write!(f, "Invalid matrix: {}", msg),
         }
     }
 }

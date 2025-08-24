@@ -52,7 +52,23 @@ impl fmt::Display for Expression {
                     write!(f, "{}", n)?
                 }
             }
-            Expression::Matrix(matrix) => write!(f, "{}", matrix)?,
+            Expression::Matrix(matrix) => {
+                write!(f, "[")?;
+                for (i, row) in matrix.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "[")?;
+                    for (j, expr) in row.iter().enumerate() {
+                        if j > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", expr)?;
+                    }
+                    write!(f, "]")?;
+                }
+                write!(f, "]")?
+            }
             Expression::Variable(name) => write!(f, "{}", name)?,
             Expression::FunctionCall { name, args } => {
                 write!(f, "{}", name)?;
