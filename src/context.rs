@@ -231,7 +231,7 @@ impl BinaryOperation {
             // x + 0 = x
             (left, Expression::Number(n)) if *n == 0.0 => Ok(left.clone()),
             // x + x = 2*x
-            (left, right) if ExpressionComparer::equal(left, right) => Ok(Expression::BinaryOp {
+            (left, right) if left == right => Ok(Expression::BinaryOp {
                 left: Box::new(Expression::Number(2.0)),
                 op: BinaryOperator::Multiply,
                 right: Box::new(left.clone()),
@@ -249,7 +249,7 @@ impl BinaryOperation {
                 UnaryOperation::new(UnaryOperator::Minus, right.clone()).simplify()
             }
             // x - x = 0
-            (left, right) if ExpressionComparer::equal(left, right) => Ok(Expression::Number(0.0)),
+            (left, right) if left == right => Ok(Expression::Number(0.0)),
             _ => Ok(self.to_expression()),
         }
     }
@@ -422,40 +422,6 @@ impl UnaryOperation {
                 op: self.op,
                 operand: Box::new(self.operand),
             }),
-        }
-    }
-}
-
-struct ExpressionComparer;
-
-impl ExpressionComparer {
-    fn equal(left: &Expression, right: &Expression) -> bool {
-        match (left, right) {
-            (Expression::Number(a), Expression::Number(b)) => (a - b).abs() < f64::EPSILON,
-            (Expression::Variable(a), Expression::Variable(b)) => a == b,
-            (
-                Expression::BinaryOp {
-                    left: l1,
-                    op: op1,
-                    right: r1,
-                },
-                Expression::BinaryOp {
-                    left: l2,
-                    op: op2,
-                    right: r2,
-                },
-            ) => op1 == op2 && Self::equal(l1, l2) && Self::equal(r1, r2),
-            (
-                Expression::UnaryOp {
-                    op: op1,
-                    operand: o1,
-                },
-                Expression::UnaryOp {
-                    op: op2,
-                    operand: o2,
-                },
-            ) => op1 == op2 && Self::equal(o1, o2),
-            _ => false,
         }
     }
 }
