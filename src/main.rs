@@ -30,7 +30,7 @@ fn main() -> RustylineResult<()> {
                         context.assign(name, value);
                     }
                     Ok(ParsedLine::Query { expression }) => {
-                        match context.evaluate_query(&expression) {
+                        match context.evaluate_expression(&expression) {
                             Ok(result) => println!("{}", result),
                             Err(e) => println!("Evaluation error: {}", e),
                         }

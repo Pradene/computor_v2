@@ -33,11 +33,11 @@ impl Context {
         self.set_variable(name, value);
     }
 
-    pub fn evaluate_query(&self, expression: &Expression) -> Result<Expression, EvaluationError> {
-        self.reduce_expression(expression, &HashMap::new())
+    pub fn evaluate_expression(&self, expression: &Expression) -> Result<Expression, EvaluationError> {
+        self.evaluate_expression_with_scope(expression, &HashMap::new())
     }
 
-    pub fn evaluate_expression(
+    pub fn evaluate_expression_with_scope(
         &self,
         expr: &Expression,
         param_scope: &HashMap<String, Expression>,
