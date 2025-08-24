@@ -179,7 +179,7 @@ impl Context {
         let left_reduced = self.reduce_expression(left, param_scope)?;
         let right_reduced = self.reduce_expression(right, param_scope)?;
 
-        BinaryOperation::new(left_reduced, op.clone(), right_reduced).simplify()
+        BinaryOperation::new(left_reduced, op.clone(), right_reduced).reduce()
     }
 
     fn reduce_unary_operation(
@@ -189,7 +189,7 @@ impl Context {
         param_scope: &HashMap<String, Expression>,
     ) -> Result<Expression, EvaluationError> {
         let operand_reduced = self.reduce_expression(operand, param_scope)?;
-        UnaryOperation::new(op.clone(), operand_reduced).simplify()
+        UnaryOperation::new(op.clone(), operand_reduced).reduce()
     }
 }
 
@@ -204,7 +204,7 @@ impl BinaryOperation {
         Self { left, op, right }
     }
 
-    fn simplify(self) -> Result<Expression, EvaluationError> {
+    fn reduce(self) -> Result<Expression, EvaluationError> {
         // Handle numeric computations first
         if let (Expression::Number(a), Expression::Number(b)) = (&self.left, &self.right) {
             return self.compute_numeric(*a, *b);
@@ -212,12 +212,12 @@ impl BinaryOperation {
 
         // Apply basic algebraic simplifications
         match self.op {
-            BinaryOperator::Add => self.simplify_addition(),
-            BinaryOperator::Modulo => self.simplify_modulo(),
-            BinaryOperator::Subtract => self.simplify_subtraction(),
-            BinaryOperator::Multiply => self.simplify_multiplication(),
-            BinaryOperator::Divide => self.simplify_division(),
-            BinaryOperator::Power => self.simplify_power(),
+            BinaryOperator::Add => self.reduce_addition(),
+            BinaryOperator::Modulo => self.reduce_modulo(),
+            BinaryOperator::Subtract => self.reduce_subtraction(),
+            BinaryOperator::Multiply => self.reduce_multiplication(),
+            BinaryOperator::Divide => self.reduce_division(),
+            BinaryOperator::Power => self.reduce_power(),
         }
     }
 
@@ -250,7 +250,7 @@ impl BinaryOperation {
         Ok(Expression::Number(result))
     }
 
-    fn simplify_addition(self) -> Result<Expression, EvaluationError> {
+    fn reduce_addition(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // 0 + x = x
             (Expression::Number(n), right) if n.is_zero() => Ok(right.clone()),
@@ -266,13 +266,13 @@ impl BinaryOperation {
         }
     }
 
-    fn simplify_subtraction(self) -> Result<Expression, EvaluationError> {
+    fn reduce_subtraction(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // x - 0 = x
             (left, Expression::Number(n)) if n.is_zero() => Ok(left.clone()),
             // 0 - x = -x
             (Expression::Number(n), right) if n.is_zero() => {
-                UnaryOperation::new(UnaryOperator::Minus, right.clone()).simplify()
+                UnaryOperation::new(UnaryOperator::Minus, right.clone()).reduce()
             }
             // x - x = 0
             (left, right) if left == right => Ok(Expression::Number(Complex::new(0.0, 0.0))),
@@ -280,7 +280,7 @@ impl BinaryOperation {
         }
     }
 
-    fn simplify_multiplication(self) -> Result<Expression, EvaluationError> {
+    fn reduce_multiplication(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // 0 * x = 0
             (Expression::Number(n), _) | (_, Expression::Number(n)) if n.is_zero() => {
@@ -301,11 +301,11 @@ impl BinaryOperation {
             ) => {
                 let ab =
                     BinaryOperation::new(a.clone(), BinaryOperator::Multiply, b.as_ref().clone())
-                        .simplify()?;
+                        .reduce()?;
                 let ac =
                     BinaryOperation::new(a.clone(), BinaryOperator::Multiply, c.as_ref().clone())
-                        .simplify()?;
-                BinaryOperation::new(ab, BinaryOperator::Add, ac).simplify()
+                        .reduce()?;
+                BinaryOperation::new(ab, BinaryOperator::Add, ac).reduce()
             }
             // (a + b) * c = a*c + b*c
             (
@@ -318,17 +318,17 @@ impl BinaryOperation {
             ) => {
                 let ac =
                     BinaryOperation::new(a.as_ref().clone(), BinaryOperator::Multiply, c.clone())
-                        .simplify()?;
+                        .reduce()?;
                 let bc =
                     BinaryOperation::new(b.as_ref().clone(), BinaryOperator::Multiply, c.clone())
-                        .simplify()?;
-                BinaryOperation::new(ac, BinaryOperator::Add, bc).simplify()
+                        .reduce()?;
+                BinaryOperation::new(ac, BinaryOperator::Add, bc).reduce()
             }
             _ => Ok(self.to_expression()),
         }
     }
 
-    fn simplify_division(self) -> Result<Expression, EvaluationError> {
+    fn reduce_division(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // x / 1 = x
             (left, Expression::Number(n)) if n.is_one() => Ok(left.clone()),
@@ -348,7 +348,7 @@ impl BinaryOperation {
         }
     }
 
-    fn simplify_modulo(self) -> Result<Expression, EvaluationError> {
+    fn reduce_modulo(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // Check if both operands are real numbers
             (Expression::Number(a), Expression::Number(b)) if a.is_real() && b.is_real() => {
@@ -439,7 +439,7 @@ impl BinaryOperation {
                 BinaryOperator::Modulo,
                 right_inner.as_ref().clone(),
             )
-            .simplify(),
+            .reduce(),
 
             // (-x) % y = -(x % y) (for positive y)
             (
@@ -454,15 +454,15 @@ impl BinaryOperation {
                     BinaryOperator::Modulo,
                     right.clone(),
                 )
-                .simplify()?;
-                UnaryOperation::new(UnaryOperator::Minus, inner_mod).simplify()
+                .reduce()?;
+                UnaryOperation::new(UnaryOperator::Minus, inner_mod).reduce()
             }
 
             _ => Ok(self.to_expression()),
         }
     }
 
-    fn simplify_power(self) -> Result<Expression, EvaluationError> {
+    fn reduce_power(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // x^0 = 1
             (_, Expression::Number(n)) if n.is_zero() => {
@@ -515,7 +515,7 @@ impl UnaryOperation {
         Self { op, operand }
     }
 
-    fn simplify(self) -> Result<Expression, EvaluationError> {
+    fn reduce(self) -> Result<Expression, EvaluationError> {
         match (&self.op, &self.operand) {
             // Direct computation for numbers
             (UnaryOperator::Plus, Expression::Number(n)) => Ok(Expression::Number(*n)),
@@ -543,10 +543,10 @@ impl UnaryOperation {
                 },
             ) => {
                 let neg_left =
-                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).simplify()?;
+                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).reduce()?;
                 let neg_right =
-                    UnaryOperation::new(UnaryOperator::Minus, right.as_ref().clone()).simplify()?;
-                BinaryOperation::new(neg_left, BinaryOperator::Subtract, neg_right).simplify()
+                    UnaryOperation::new(UnaryOperator::Minus, right.as_ref().clone()).reduce()?;
+                BinaryOperation::new(neg_left, BinaryOperator::Subtract, neg_right).reduce()
             }
 
             (
@@ -558,9 +558,8 @@ impl UnaryOperation {
                 },
             ) => {
                 let neg_left =
-                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).simplify()?;
-                BinaryOperation::new(right.as_ref().clone(), BinaryOperator::Add, neg_left)
-                    .simplify()
+                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).reduce()?;
+                BinaryOperation::new(right.as_ref().clone(), BinaryOperator::Add, neg_left).reduce()
             }
 
             (
@@ -572,9 +571,9 @@ impl UnaryOperation {
                 },
             ) => {
                 let neg_left =
-                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).simplify()?;
+                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).reduce()?;
                 BinaryOperation::new(neg_left, BinaryOperator::Multiply, right.as_ref().clone())
-                    .simplify()
+                    .reduce()
             }
 
             // Default case
