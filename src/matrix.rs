@@ -26,15 +26,6 @@ impl Matrix {
         Ok(Matrix { data, rows, cols })
     }
 
-    // Create a matrix from f64 values (convenience constructor)
-    pub fn from_numbers(data: Vec<Vec<f64>>) -> Result<Self, String> {
-        let expr_data: Vec<Vec<Expression>> = data
-            .into_iter()
-            .map(|row| row.into_iter().map(Expression::Number).collect())
-            .collect();
-        Self::new(expr_data)
-    }
-
     pub fn rows(&self) -> usize {
         self.rows
     }
@@ -49,21 +40,5 @@ impl Matrix {
 
     pub fn iter(&self) -> impl Iterator<Item = &Vec<Expression>> {
         self.data.iter()
-    }
-
-    // Try to convert to a numeric matrix if all elements are numbers
-    pub fn to_numeric(&self) -> Option<Vec<Vec<f64>>> {
-        let mut result = Vec::new();
-        for row in &self.data {
-            let mut numeric_row = Vec::new();
-            for expr in row {
-                match expr {
-                    Expression::Number(n) => numeric_row.push(*n),
-                    _ => return None, // Contains non-numeric expression
-                }
-            }
-            result.push(numeric_row);
-        }
-        Some(result)
     }
 }
