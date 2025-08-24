@@ -1,6 +1,7 @@
 use std::fmt;
 
-use crate::Matrix;
+use crate::complex::Complex;
+use crate::matrix::Matrix;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -24,7 +25,7 @@ impl fmt::Display for Value {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
-    Number(f64),
+    Number(Complex),
     Matrix(Matrix),
     Variable(String),
     FunctionCall {
@@ -46,10 +47,49 @@ impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expression::Number(n) => {
-                if n.fract() == 0.0 {
-                    write!(f, "{}", *n as i64)?
+                if n.is_real() {
+                    if n.real.fract() == 0.0 {
+                        write!(f, "{}", n.real as i64)?
+                    } else {
+                        write!(f, "{}", n.real)?
+                    }
+                } else if n.real == 0.0 {
+                    if n.imag == 1.0 {
+                        write!(f, "i")?
+                    } else if n.imag == -1.0 {
+                        write!(f, "-i")?
+                    } else if n.imag.fract() == 0.0 {
+                        write!(f, "{}i", n.imag as i64)?
+                    } else {
+                        write!(f, "{}i", n.imag)?
+                    }
                 } else {
-                    write!(f, "{}", n)?
+                    if n.real.fract() == 0.0 {
+                        write!(f, "{}", n.real as i64)?
+                    } else {
+                        write!(f, "{}", n.real)?
+                    }
+
+                    if n.imag > 0.0 {
+                        write!(f, " + ")?;
+                        if n.imag == 1.0 {
+                            write!(f, "i")?
+                        } else if n.imag.fract() == 0.0 {
+                            write!(f, "{}i", n.imag as i64)?
+                        } else {
+                            write!(f, "{}i", n.imag)?
+                        }
+                    } else {
+                        write!(f, " - ")?;
+                        let abs_imag = n.imag.abs();
+                        if abs_imag == 1.0 {
+                            write!(f, "i")?
+                        } else if abs_imag.fract() == 0.0 {
+                            write!(f, "{}i", abs_imag as i64)?
+                        } else {
+                            write!(f, "{}i", abs_imag)?
+                        }
+                    }
                 }
             }
             Expression::Matrix(matrix) => {

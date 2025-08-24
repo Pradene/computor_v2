@@ -1,4 +1,5 @@
 use crate::ast::{BinaryOperator, Expression, UnaryOperator, Value};
+use crate::complex::Complex;
 use crate::error::ParseError;
 use crate::matrix::Matrix;
 use crate::tokenizer::{Token, Tokenizer};
@@ -228,8 +229,7 @@ impl LineParser {
                         right: Box::new(right),
                     };
                 }
-                // Handle implicit multiplication (like "3b")
-                Token::Identifier(_) | Token::LeftParen => {
+                Token::Identifier(_) | Token::LeftParen | Token::Imaginary => {
                     let right = self.parse_power(tokens, pos)?;
                     left = Expression::BinaryOp {
                         left: Box::new(left),
@@ -294,7 +294,11 @@ impl LineParser {
         match &tokens[*pos] {
             Token::Number(n) => {
                 *pos += 1;
-                Ok(Expression::Number(*n))
+                Ok(Expression::Number(Complex::new(*n, 0.0)))
+            }
+            Token::Imaginary => {
+                *pos += 1;
+                Ok(Expression::Number(Complex::new(0.0, 1.0)))
             }
             Token::LeftBracket => self.parse_matrix(tokens, pos),
             Token::Identifier(name) => self.parse_identifier(tokens, pos, name.clone()),

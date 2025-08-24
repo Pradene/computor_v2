@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use crate::ast::{BinaryOperator, Expression, UnaryOperator, Value};
+use crate::complex::Complex;
 use crate::error::EvaluationError;
-use crate::Matrix;
+use crate::matrix::Matrix;
 
 pub struct Context {
     variables: HashMap<String, Value>,
@@ -82,7 +83,10 @@ impl Context {
         // Check context variables
         match self.get_variable(name) {
             Some(Value::Variable(expr)) => self.reduce_expression(expr, param_scope),
-            Some(Value::Function { .. }) => Err(EvaluationError::NotAVariable(name.to_string())),
+            Some(Value::Function { .. }) => Err(EvaluationError::InvalidOperation(format!(
+                "Cannot use function '{}' as variable",
+                name
+            ))),
             None => Ok(Expression::Variable(name.to_string())), // Keep symbolic
         }
     }
@@ -100,7 +104,9 @@ impl Context {
             }
             reduced_data.push(reduced_row);
         }
-        let reduced_matrix = Matrix::new(reduced_data).map_err(EvaluationError::InvalidMatrix)?;
+        let reduced_matrix = Matrix::new(reduced_data).map_err(|_| {
+            EvaluationError::InvalidOperation("Matrix reduction failed".to_string())
+        })?;
         Ok(Expression::Matrix(reduced_matrix))
     }
 
@@ -114,7 +120,10 @@ impl Context {
             Some(Value::Function { params, body }) => {
                 self.execute_function(params, body, args, param_scope)
             }
-            Some(Value::Variable(_)) => Err(EvaluationError::NotAFunction(name.to_string())),
+            Some(Value::Variable(_)) => Err(EvaluationError::InvalidOperation(format!(
+                "'{}' is not a function",
+                name
+            ))),
             None => {
                 // Reduce arguments and keep as function call
                 let reduced_args = args
@@ -212,19 +221,31 @@ impl BinaryOperation {
         }
     }
 
-    fn compute_numeric(&self, a: f64, b: f64) -> Result<Expression, EvaluationError> {
+    fn compute_numeric(&self, a: Complex, b: Complex) -> Result<Expression, EvaluationError> {
         let result = match self.op {
             BinaryOperator::Add => a + b,
-            BinaryOperator::Modulo => a % b,
             BinaryOperator::Subtract => a - b,
             BinaryOperator::Multiply => a * b,
             BinaryOperator::Divide => {
-                if b == 0.0 {
+                if b.is_zero() {
                     return Err(EvaluationError::DivisionByZero);
                 }
                 a / b
             }
-            BinaryOperator::Power => a.powf(b),
+            BinaryOperator::Power => a.pow(b),
+            BinaryOperator::Modulo => {
+                if !a.is_real() || !b.is_real() {
+                    return Err(EvaluationError::UnsupportedOperation(
+                        "Modulo operation is only supported for real numbers".to_string(),
+                    ));
+                }
+                if b.real == 0.0 {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Modulo by zero is undefined".to_string(),
+                    ));
+                }
+                Complex::new(a.real % b.real, 0.0)
+            }
         };
         Ok(Expression::Number(result))
     }
@@ -232,12 +253,12 @@ impl BinaryOperation {
     fn simplify_addition(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // 0 + x = x
-            (Expression::Number(n), right) if *n == 0.0 => Ok(right.clone()),
+            (Expression::Number(n), right) if n.is_zero() => Ok(right.clone()),
             // x + 0 = x
-            (left, Expression::Number(n)) if *n == 0.0 => Ok(left.clone()),
+            (left, Expression::Number(n)) if n.is_zero() => Ok(left.clone()),
             // x + x = 2*x
             (left, right) if left == right => Ok(Expression::BinaryOp {
-                left: Box::new(Expression::Number(2.0)),
+                left: Box::new(Expression::Number(Complex::new(2.0, 0.0))),
                 op: BinaryOperator::Multiply,
                 right: Box::new(left.clone()),
             }),
@@ -248,13 +269,13 @@ impl BinaryOperation {
     fn simplify_subtraction(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // x - 0 = x
-            (left, Expression::Number(n)) if *n == 0.0 => Ok(left.clone()),
+            (left, Expression::Number(n)) if n.is_zero() => Ok(left.clone()),
             // 0 - x = -x
-            (Expression::Number(n), right) if *n == 0.0 => {
+            (Expression::Number(n), right) if n.is_zero() => {
                 UnaryOperation::new(UnaryOperator::Minus, right.clone()).simplify()
             }
             // x - x = 0
-            (left, right) if left == right => Ok(Expression::Number(0.0)),
+            (left, right) if left == right => Ok(Expression::Number(Complex::new(0.0, 0.0))),
             _ => Ok(self.to_expression()),
         }
     }
@@ -262,13 +283,13 @@ impl BinaryOperation {
     fn simplify_multiplication(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // 0 * x = 0
-            (Expression::Number(n), _) | (_, Expression::Number(n)) if *n == 0.0 => {
-                Ok(Expression::Number(0.0))
+            (Expression::Number(n), _) | (_, Expression::Number(n)) if n.is_zero() => {
+                Ok(Expression::Number(Complex::new(0.0, 0.0)))
             }
             // 1 * x = x
-            (Expression::Number(n), right) if *n == 1.0 => Ok(right.clone()),
+            (Expression::Number(n), right) if n.is_one() => Ok(right.clone()),
             // x * 1 = x
-            (left, Expression::Number(n)) if *n == 1.0 => Ok(left.clone()),
+            (left, Expression::Number(n)) if n.is_one() => Ok(left.clone()),
             // Distribute multiplication: a * (b + c) = a*b + a*c
             (
                 a,
@@ -310,13 +331,17 @@ impl BinaryOperation {
     fn simplify_division(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // x / 1 = x
-            (left, Expression::Number(n)) if *n == 1.0 => Ok(left.clone()),
+            (left, Expression::Number(n)) if n.is_one() => Ok(left.clone()),
             // 0 / x = 0 (assuming x != 0)
-            (Expression::Number(n), right) if *n == 0.0 => {
-                if let Expression::Number(0.0) = right {
-                    Err(EvaluationError::DivisionByZero)
+            (Expression::Number(n), right) if n.is_zero() => {
+                if let Expression::Number(divisor) = right {
+                    if divisor.is_zero() {
+                        Err(EvaluationError::DivisionByZero)
+                    } else {
+                        Ok(Expression::Number(Complex::new(0.0, 0.0)))
+                    }
                 } else {
-                    Ok(Expression::Number(0.0))
+                    Ok(Expression::Number(Complex::new(0.0, 0.0)))
                 }
             }
             _ => Ok(self.to_expression()),
@@ -325,30 +350,82 @@ impl BinaryOperation {
 
     fn simplify_modulo(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
-            // x % 1 = 0 (for any real number x)
-            (_, Expression::Number(n)) if *n == 1.0 => Ok(Expression::Number(0.0)),
+            // Check if both operands are real numbers
+            (Expression::Number(a), Expression::Number(b)) if a.is_real() && b.is_real() => {
+                if b.real == 0.0 {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Modulo by zero is undefined".to_string(),
+                    ));
+                }
+                Ok(Expression::Number(Complex::new(a.real % b.real, 0.0)))
+            }
 
-            // 0 % x = 0 (for any non-zero x)
-            (Expression::Number(n), right) if *n == 0.0 => {
-                if let Expression::Number(0.0) = right {
-                    Err(EvaluationError::UndefinedOperation)
+            // x % 1 = 0 (for any real number x)
+            (left, Expression::Number(n)) if n.is_real() && n.real == 1.0 => {
+                // Check if left is real
+                if let Expression::Number(left_n) = left {
+                    if left_n.is_real() {
+                        Ok(Expression::Number(Complex::new(0.0, 0.0)))
+                    } else {
+                        Err(EvaluationError::UnsupportedOperation(
+                            "Modulo operation is only supported for real numbers".to_string(),
+                        ))
+                    }
                 } else {
-                    Ok(Expression::Number(0.0))
+                    Ok(self.to_expression()) // Keep symbolic for variables
                 }
             }
 
-            // x % x = 0 (for any non-zero x)
+            // 0 % x = 0 (for any non-zero real x)
+            (Expression::Number(n), right) if n.is_zero() => {
+                if let Expression::Number(right_n) = right {
+                    if right_n.is_zero() {
+                        Err(EvaluationError::InvalidOperation(
+                            "Modulo by zero is undefined".to_string(),
+                        ))
+                    } else if right_n.is_real() {
+                        Ok(Expression::Number(Complex::new(0.0, 0.0)))
+                    } else {
+                        Err(EvaluationError::UnsupportedOperation(
+                            "Modulo operation is only supported for real numbers".to_string(),
+                        ))
+                    }
+                } else {
+                    Ok(Expression::Number(Complex::new(0.0, 0.0)))
+                }
+            }
+
+            // x % x = 0 (for any non-zero real x)
             (left, right) if left == right => {
-                // Need to check if it's zero at runtime for variables
                 match left {
-                    Expression::Number(n) if *n == 0.0 => Err(EvaluationError::UndefinedOperation),
-                    Expression::Number(_) => Ok(Expression::Number(0.0)),
+                    Expression::Number(n) => {
+                        if n.is_zero() {
+                            Err(EvaluationError::InvalidOperation(
+                                "Modulo by zero is undefined".to_string(),
+                            ))
+                        } else if n.is_real() {
+                            Ok(Expression::Number(Complex::new(0.0, 0.0)))
+                        } else {
+                            Err(EvaluationError::UnsupportedOperation(
+                                "Modulo operation is only supported for real numbers".to_string(),
+                            ))
+                        }
+                    }
                     _ => Ok(self.to_expression()), // Keep symbolic for variables
                 }
             }
 
             // Handle modulo by zero
-            (_, Expression::Number(n)) if *n == 0.0 => Err(EvaluationError::UndefinedOperation),
+            (_, Expression::Number(n)) if n.is_zero() => Err(EvaluationError::InvalidOperation(
+                "Modulo by zero is undefined".to_string(),
+            )),
+
+            // Check for complex numbers and reject them
+            (Expression::Number(a), _) | (_, Expression::Number(a)) if !a.is_real() => {
+                Err(EvaluationError::UnsupportedOperation(
+                    "Modulo operation is only supported for real numbers".to_string(),
+                ))
+            }
 
             // x % -y = x % y (modulo has same result regardless of divisor sign)
             (
@@ -388,15 +465,31 @@ impl BinaryOperation {
     fn simplify_power(self) -> Result<Expression, EvaluationError> {
         match (&self.left, &self.right) {
             // x^0 = 1
-            (_, Expression::Number(n)) if *n == 0.0 => Ok(Expression::Number(1.0)),
+            (_, Expression::Number(n)) if n.is_zero() => {
+                Ok(Expression::Number(Complex::new(1.0, 0.0)))
+            }
             // x^1 = x
-            (left, Expression::Number(n)) if *n == 1.0 => Ok(left.clone()),
+            (left, Expression::Number(n)) if n.is_one() => Ok(left.clone()),
             // 1^x = 1
-            (Expression::Number(n), _) if *n == 1.0 => Ok(Expression::Number(1.0)),
+            (Expression::Number(n), _) if n.is_one() => {
+                Ok(Expression::Number(Complex::new(1.0, 0.0)))
+            }
             // 0^x
-            (Expression::Number(n), right) if *n == 0.0 => match right {
-                Expression::Number(exp) if *exp > 0.0 => Ok(Expression::Number(0.0)),
-                Expression::Number(exp) if *exp <= 0.0 => Err(EvaluationError::UndefinedOperation),
+            (Expression::Number(n), right) if n.is_zero() => match right {
+                Expression::Number(exp) => {
+                    if exp.is_real() && exp.real > 0.0 {
+                        Ok(Expression::Number(Complex::new(0.0, 0.0)))
+                    } else if exp.is_real() && exp.real <= 0.0 {
+                        Err(EvaluationError::InvalidOperation(
+                            "Zero to non-positive power is undefined".to_string(),
+                        ))
+                    } else {
+                        // Complex exponent with zero base is generally undefined
+                        Err(EvaluationError::InvalidOperation(
+                            "Zero to complex power is undefined".to_string(),
+                        ))
+                    }
+                }
                 _ => Ok(self.to_expression()),
             },
             _ => Ok(self.to_expression()),
@@ -426,7 +519,7 @@ impl UnaryOperation {
         match (&self.op, &self.operand) {
             // Direct computation for numbers
             (UnaryOperator::Plus, Expression::Number(n)) => Ok(Expression::Number(*n)),
-            (UnaryOperator::Minus, Expression::Number(n)) => Ok(Expression::Number(-n)),
+            (UnaryOperator::Minus, Expression::Number(n)) => Ok(Expression::Number(-*n)),
 
             // +x = x
             (UnaryOperator::Plus, operand) => Ok(operand.clone()),
