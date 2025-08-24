@@ -8,6 +8,12 @@ pub struct Context {
     variables: HashMap<String, Value>,
 }
 
+impl Default for Context {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Context {
     pub fn new() -> Self {
         Self {
@@ -28,7 +34,7 @@ impl Context {
     }
 
     pub fn evaluate_query(&self, expression: &Expression) -> Result<Expression, EvaluationError> {
-        self.evaluate_expression(expression, &HashMap::new())
+        self.reduce_expression(expression, &HashMap::new())
     }
 
     pub fn evaluate_expression(
@@ -36,8 +42,7 @@ impl Context {
         expr: &Expression,
         param_scope: &HashMap<String, Expression>,
     ) -> Result<Expression, EvaluationError> {
-        let reduced = self.reduce_expression(expr, param_scope)?;
-        Ok(reduced)
+        self.reduce_expression(expr, param_scope)
     }
 
     pub fn reduce_expression(
@@ -47,197 +52,236 @@ impl Context {
     ) -> Result<Expression, EvaluationError> {
         match expr {
             Expression::Number(_) => Ok(expr.clone()),
-
-            Expression::Matrix(matrix) => {
-                let mut reduced_data = Vec::new();
-                for row in matrix.iter() {
-                    let mut reduced_row = Vec::new();
-                    for elem in row {
-                        let reduced_elem = self.reduce_expression(elem, param_scope)?;
-                        reduced_row.push(reduced_elem);
-                    }
-                    reduced_data.push(reduced_row);
-                }
-                let reduced_matrix =
-                    Matrix::new(reduced_data).map_err(|e| EvaluationError::InvalidMatrix(e))?;
-                Ok(Expression::Matrix(reduced_matrix))
-            }
-
-            Expression::Variable(name) => {
-                // First check parameter scope
-                if let Some(expr) = param_scope.get(name) {
-                    self.reduce_expression(expr, param_scope)
-                } else {
-                    match self.get_variable(name) {
-                        Some(Value::Variable(expr)) => self.reduce_expression(expr, param_scope),
-                        Some(Value::Function { .. }) => {
-                            Err(EvaluationError::NotAVariable(name.clone()))
-                        }
-                        None => Ok(Expression::Variable(name.clone())), // Keep symbolic
-                    }
-                }
-            }
-
+            Expression::Matrix(matrix) => self.reduce_matrix(matrix, param_scope),
+            Expression::Variable(name) => self.resolve_variable(name, param_scope),
             Expression::FunctionCall { name, args } => {
-                match self.get_variable(name) {
-                    Some(Value::Function { params, body }) => {
-                        if args.len() != params.len() {
-                            return Err(EvaluationError::WrongArgumentCount {
-                                expected: params.len(),
-                                got: args.len(),
-                            });
-                        }
-
-                        // Reduce arguments first
-                        let mut reduced_args = Vec::new();
-                        for arg in args {
-                            reduced_args.push(self.reduce_expression(arg, param_scope)?);
-                        }
-
-                        // Create parameter scope for function call
-                        let mut function_scope = HashMap::new();
-                        for (param, reduced_arg) in params.iter().zip(reduced_args.iter()) {
-                            function_scope.insert(param.clone(), reduced_arg.clone());
-                        }
-
-                        self.reduce_expression(body, &function_scope)
-                    }
-                    Some(Value::Variable(_)) => Err(EvaluationError::NotAFunction(name.clone())),
-                    None => {
-                        // Reduce arguments and keep as function call
-                        let mut reduced_args = Vec::new();
-                        for arg in args {
-                            reduced_args.push(self.reduce_expression(arg, param_scope)?);
-                        }
-                        Ok(Expression::FunctionCall {
-                            name: name.clone(),
-                            args: reduced_args,
-                        })
-                    }
-                }
+                self.reduce_function_call(name, args, param_scope)
             }
-
             Expression::BinaryOp { left, op, right } => {
-                let left_reduced = self.reduce_expression(left, param_scope)?;
-                let right_reduced = self.reduce_expression(right, param_scope)?;
-                self.reduce_binary_op(&left_reduced, op, &right_reduced)
+                self.reduce_binary_operation(left, op, right, param_scope)
             }
-
             Expression::UnaryOp { op, operand } => {
-                let operand_reduced = self.reduce_expression(operand, param_scope)?;
-                self.reduce_unary_op(op, &operand_reduced)
+                self.reduce_unary_operation(op, operand, param_scope)
             }
         }
     }
 
-    fn reduce_binary_op(
+    fn resolve_variable(
+        &self,
+        name: &str,
+        param_scope: &HashMap<String, Expression>,
+    ) -> Result<Expression, EvaluationError> {
+        // Check parameter scope first
+        if let Some(expr) = param_scope.get(name) {
+            return Ok(expr.clone());
+        }
+
+        // Check context variables
+        match self.get_variable(name) {
+            Some(Value::Variable(expr)) => self.reduce_expression(expr, param_scope),
+            Some(Value::Function { .. }) => Err(EvaluationError::NotAVariable(name.to_string())),
+            None => Ok(Expression::Variable(name.to_string())), // Keep symbolic
+        }
+    }
+
+    fn reduce_matrix(
+        &self,
+        matrix: &Matrix,
+        param_scope: &HashMap<String, Expression>,
+    ) -> Result<Expression, EvaluationError> {
+        let mut reduced_data = Vec::new();
+        for row in matrix.iter() {
+            let mut reduced_row = Vec::new();
+            for elem in row {
+                reduced_row.push(self.reduce_expression(elem, param_scope)?);
+            }
+            reduced_data.push(reduced_row);
+        }
+        let reduced_matrix = Matrix::new(reduced_data).map_err(EvaluationError::InvalidMatrix)?;
+        Ok(Expression::Matrix(reduced_matrix))
+    }
+
+    fn reduce_function_call(
+        &self,
+        name: &str,
+        args: &[Expression],
+        param_scope: &HashMap<String, Expression>,
+    ) -> Result<Expression, EvaluationError> {
+        match self.get_variable(name) {
+            Some(Value::Function { params, body }) => {
+                self.execute_function(params, body, args, param_scope)
+            }
+            Some(Value::Variable(_)) => Err(EvaluationError::NotAFunction(name.to_string())),
+            None => {
+                // Reduce arguments and keep as function call
+                let reduced_args = args
+                    .iter()
+                    .map(|arg| self.reduce_expression(arg, param_scope))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(Expression::FunctionCall {
+                    name: name.to_string(),
+                    args: reduced_args,
+                })
+            }
+        }
+    }
+
+    fn execute_function(
+        &self,
+        params: &[String],
+        body: &Expression,
+        args: &[Expression],
+        param_scope: &HashMap<String, Expression>,
+    ) -> Result<Expression, EvaluationError> {
+        if args.len() != params.len() {
+            return Err(EvaluationError::WrongArgumentCount {
+                expected: params.len(),
+                got: args.len(),
+            });
+        }
+
+        // Reduce arguments first
+        let reduced_args = args
+            .iter()
+            .map(|arg| self.reduce_expression(arg, param_scope))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Create function scope
+        let function_scope = params
+            .iter()
+            .zip(reduced_args.iter())
+            .map(|(param, arg)| (param.clone(), arg.clone()))
+            .collect();
+
+        self.reduce_expression(body, &function_scope)
+    }
+
+    fn reduce_binary_operation(
         &self,
         left: &Expression,
         op: &BinaryOperator,
         right: &Expression,
+        param_scope: &HashMap<String, Expression>,
     ) -> Result<Expression, EvaluationError> {
-        match (left, right) {
-            // Both are numbers - compute directly
-            (Expression::Number(a), Expression::Number(b)) => match op {
-                BinaryOperator::Add => Ok(Expression::Number(a + b)),
-                BinaryOperator::Subtract => Ok(Expression::Number(a - b)),
-                BinaryOperator::Multiply => Ok(Expression::Number(a * b)),
-                BinaryOperator::Divide => {
-                    if *b == 0.0 {
-                        Err(EvaluationError::DivisionByZero)
-                    } else {
-                        Ok(Expression::Number(a / b))
-                    }
+        let left_reduced = self.reduce_expression(left, param_scope)?;
+        let right_reduced = self.reduce_expression(right, param_scope)?;
+
+        BinaryOperation::new(left_reduced, op.clone(), right_reduced).simplify()
+    }
+
+    fn reduce_unary_operation(
+        &self,
+        op: &UnaryOperator,
+        operand: &Expression,
+        param_scope: &HashMap<String, Expression>,
+    ) -> Result<Expression, EvaluationError> {
+        let operand_reduced = self.reduce_expression(operand, param_scope)?;
+        UnaryOperation::new(op.clone(), operand_reduced).simplify()
+    }
+}
+
+struct BinaryOperation {
+    left: Expression,
+    op: BinaryOperator,
+    right: Expression,
+}
+
+impl BinaryOperation {
+    fn new(left: Expression, op: BinaryOperator, right: Expression) -> Self {
+        Self { left, op, right }
+    }
+
+    fn simplify(self) -> Result<Expression, EvaluationError> {
+        // Handle numeric computations first
+        if let (Expression::Number(a), Expression::Number(b)) = (&self.left, &self.right) {
+            return self.compute_numeric(*a, *b);
+        }
+
+        // Apply basic algebraic simplifications
+        match self.op {
+            BinaryOperator::Add => self.simplify_addition(),
+            BinaryOperator::Subtract => self.simplify_subtraction(),
+            BinaryOperator::Multiply => self.simplify_multiplication(),
+            BinaryOperator::Divide => self.simplify_division(),
+            BinaryOperator::Power => self.simplify_power(),
+        }
+    }
+
+    fn compute_numeric(&self, a: f64, b: f64) -> Result<Expression, EvaluationError> {
+        let result = match self.op {
+            BinaryOperator::Add => a + b,
+            BinaryOperator::Subtract => a - b,
+            BinaryOperator::Multiply => a * b,
+            BinaryOperator::Divide => {
+                if b == 0.0 {
+                    return Err(EvaluationError::DivisionByZero);
                 }
-                BinaryOperator::Power => Ok(Expression::Number(a.powf(*b))),
-            },
+                a / b
+            }
+            BinaryOperator::Power => a.powf(b),
+        };
+        Ok(Expression::Number(result))
+    }
 
-            // Addition simplifications
-            (Expression::Number(0.0), right) if matches!(op, BinaryOperator::Add) => {
-                Ok(right.clone())
-            }
-            (left, Expression::Number(0.0)) if matches!(op, BinaryOperator::Add) => {
-                Ok(left.clone())
-            }
+    fn simplify_addition(self) -> Result<Expression, EvaluationError> {
+        match (&self.left, &self.right) {
+            // 0 + x = x
+            (Expression::Number(n), right) if *n == 0.0 => Ok(right.clone()),
+            // x + 0 = x
+            (left, Expression::Number(n)) if *n == 0.0 => Ok(left.clone()),
+            // x + x = 2*x
+            (left, right) if ExpressionComparer::equal(left, right) => Ok(Expression::BinaryOp {
+                left: Box::new(Expression::Number(2.0)),
+                op: BinaryOperator::Multiply,
+                right: Box::new(left.clone()),
+            }),
+            _ => Ok(self.to_expression()),
+        }
+    }
 
-            // Subtraction simplifications
-            (left, Expression::Number(0.0)) if matches!(op, BinaryOperator::Subtract) => {
-                Ok(left.clone())
+    fn simplify_subtraction(self) -> Result<Expression, EvaluationError> {
+        match (&self.left, &self.right) {
+            // x - 0 = x
+            (left, Expression::Number(n)) if *n == 0.0 => Ok(left.clone()),
+            // 0 - x = -x
+            (Expression::Number(n), right) if *n == 0.0 => {
+                UnaryOperation::new(UnaryOperator::Minus, right.clone()).simplify()
             }
-            (Expression::Number(0.0), right) if matches!(op, BinaryOperator::Subtract) => {
-                self.reduce_unary_op(&UnaryOperator::Minus, right)
-            }
+            // x - x = 0
+            (left, right) if ExpressionComparer::equal(left, right) => Ok(Expression::Number(0.0)),
+            _ => Ok(self.to_expression()),
+        }
+    }
 
-            // Multiplication simplifications
-            (Expression::Number(0.0), _) | (_, Expression::Number(0.0))
-                if matches!(op, BinaryOperator::Multiply) =>
-            {
+    fn simplify_multiplication(self) -> Result<Expression, EvaluationError> {
+        match (&self.left, &self.right) {
+            // 0 * x = 0
+            (Expression::Number(n), _) | (_, Expression::Number(n)) if *n == 0.0 => {
                 Ok(Expression::Number(0.0))
             }
-            (Expression::Number(1.0), right) if matches!(op, BinaryOperator::Multiply) => {
-                Ok(right.clone())
+            // 1 * x = x
+            (Expression::Number(n), right) if *n == 1.0 => Ok(right.clone()),
+            // x * 1 = x
+            (left, Expression::Number(n)) if *n == 1.0 => Ok(left.clone()),
+            // Distribute multiplication: a * (b + c) = a*b + a*c
+            (
+                a,
+                Expression::BinaryOp {
+                    left: b,
+                    op: BinaryOperator::Add,
+                    right: c,
+                },
+            ) => {
+                let ab =
+                    BinaryOperation::new(a.clone(), BinaryOperator::Multiply, b.as_ref().clone())
+                        .simplify()?;
+                let ac =
+                    BinaryOperation::new(a.clone(), BinaryOperator::Multiply, c.as_ref().clone())
+                        .simplify()?;
+                BinaryOperation::new(ab, BinaryOperator::Add, ac).simplify()
             }
-            (left, Expression::Number(1.0)) if matches!(op, BinaryOperator::Multiply) => {
-                Ok(left.clone())
-            }
-
-            // Division simplifications
-            (left, Expression::Number(1.0)) if matches!(op, BinaryOperator::Divide) => {
-                Ok(left.clone())
-            }
-            (Expression::Number(0.0), right) if matches!(op, BinaryOperator::Divide) => {
-                // Check if right is zero
-                if let Expression::Number(0.0) = right {
-                    Err(EvaluationError::DivisionByZero)
-                } else {
-                    Ok(Expression::Number(0.0))
-                }
-            }
-
-            // Power simplifications
-            (_, Expression::Number(0.0)) if matches!(op, BinaryOperator::Power) => {
-                Ok(Expression::Number(1.0)) // x^0 = 1 (assuming x != 0)
-            }
-            (left, Expression::Number(1.0)) if matches!(op, BinaryOperator::Power) => {
-                Ok(left.clone())
-            }
-            (Expression::Number(1.0), _) if matches!(op, BinaryOperator::Power) => {
-                Ok(Expression::Number(1.0))
-            }
-            (Expression::Number(0.0), right) if matches!(op, BinaryOperator::Power) => {
-                // 0^x = 0 if x > 0, undefined if x <= 0
-                match right {
-                    Expression::Number(n) if *n > 0.0 => Ok(Expression::Number(0.0)),
-                    Expression::Number(n) if *n <= 0.0 => Err(EvaluationError::UndefinedOperation),
-                    _ => Ok(Expression::BinaryOp {
-                        left: Box::new(left.clone()),
-                        op: op.clone(),
-                        right: Box::new(right.clone()),
-                    }),
-                }
-            }
-
-            // Combine like terms: x + x = 2*x
-            (left, right)
-                if self.expressions_equal(left, right) && matches!(op, BinaryOperator::Add) =>
-            {
-                Ok(Expression::BinaryOp {
-                    left: Box::new(Expression::Number(2.0)),
-                    op: BinaryOperator::Multiply,
-                    right: Box::new(left.clone()),
-                })
-            }
-
-            // Combine like terms: x - x = 0
-            (left, right)
-                if self.expressions_equal(left, right)
-                    && matches!(op, BinaryOperator::Subtract) =>
-            {
-                Ok(Expression::Number(0.0))
-            }
-
-            // Associativity and distributivity optimizations
-            // (a + b) + c -> a + (b + c) if b and c are numbers
+            // (a + b) * c = a*c + b*c
             (
                 Expression::BinaryOp {
                     left: a,
@@ -245,76 +289,80 @@ impl Context {
                     right: b,
                 },
                 c,
-            ) if matches!(op, BinaryOperator::Add) => {
-                if let (Expression::Number(b_val), Expression::Number(c_val)) = (b.as_ref(), c) {
-                    let bc_sum = Expression::Number(b_val + c_val);
-                    self.reduce_binary_op(a, &BinaryOperator::Add, &bc_sum)
-                } else {
-                    Ok(Expression::BinaryOp {
-                        left: Box::new(left.clone()),
-                        op: op.clone(),
-                        right: Box::new(right.clone()),
-                    })
-                }
+            ) => {
+                let ac =
+                    BinaryOperation::new(a.as_ref().clone(), BinaryOperator::Multiply, c.clone())
+                        .simplify()?;
+                let bc =
+                    BinaryOperation::new(b.as_ref().clone(), BinaryOperator::Multiply, c.clone())
+                        .simplify()?;
+                BinaryOperation::new(ac, BinaryOperator::Add, bc).simplify()
             }
-
-            // a * (b + c) -> a*b + a*c if we want to expand (optional)
-            // For now, we'll keep it factored
-
-            // Fraction simplifications: (a/b) * (c/d) = (a*c)/(b*d)
-            (
-                Expression::BinaryOp {
-                    left: a,
-                    op: BinaryOperator::Divide,
-                    right: b,
-                },
-                Expression::BinaryOp {
-                    left: c,
-                    op: BinaryOperator::Divide,
-                    right: d,
-                },
-            ) if matches!(op, BinaryOperator::Multiply) => {
-                let numerator = self.reduce_binary_op(a, &BinaryOperator::Multiply, c)?;
-                let denominator = self.reduce_binary_op(b, &BinaryOperator::Multiply, d)?;
-                self.reduce_binary_op(&numerator, &BinaryOperator::Divide, &denominator)
-            }
-
-            // (a/b) / (c/d) = (a*d)/(b*c)
-            (
-                Expression::BinaryOp {
-                    left: a,
-                    op: BinaryOperator::Divide,
-                    right: b,
-                },
-                Expression::BinaryOp {
-                    left: c,
-                    op: BinaryOperator::Divide,
-                    right: d,
-                },
-            ) if matches!(op, BinaryOperator::Divide) => {
-                let numerator = self.reduce_binary_op(a, &BinaryOperator::Multiply, d)?;
-                let denominator = self.reduce_binary_op(b, &BinaryOperator::Multiply, c)?;
-                self.reduce_binary_op(&numerator, &BinaryOperator::Divide, &denominator)
-            }
-
-            // Default case - no further reduction possible
-            _ => Ok(Expression::BinaryOp {
-                left: Box::new(left.clone()),
-                op: op.clone(),
-                right: Box::new(right.clone()),
-            }),
+            _ => Ok(self.to_expression()),
         }
     }
 
-    fn reduce_unary_op(
-        &self,
-        op: &UnaryOperator,
-        operand: &Expression,
-    ) -> Result<Expression, EvaluationError> {
-        match (op, operand) {
+    fn simplify_division(self) -> Result<Expression, EvaluationError> {
+        match (&self.left, &self.right) {
+            // x / 1 = x
+            (left, Expression::Number(n)) if *n == 1.0 => Ok(left.clone()),
+            // 0 / x = 0 (assuming x != 0)
+            (Expression::Number(n), right) if *n == 0.0 => {
+                if let Expression::Number(0.0) = right {
+                    Err(EvaluationError::DivisionByZero)
+                } else {
+                    Ok(Expression::Number(0.0))
+                }
+            }
+            _ => Ok(self.to_expression()),
+        }
+    }
+
+    fn simplify_power(self) -> Result<Expression, EvaluationError> {
+        match (&self.left, &self.right) {
+            // x^0 = 1
+            (_, Expression::Number(n)) if *n == 0.0 => Ok(Expression::Number(1.0)),
+            // x^1 = x
+            (left, Expression::Number(n)) if *n == 1.0 => Ok(left.clone()),
+            // 1^x = 1
+            (Expression::Number(n), _) if *n == 1.0 => Ok(Expression::Number(1.0)),
+            // 0^x
+            (Expression::Number(n), right) if *n == 0.0 => match right {
+                Expression::Number(exp) if *exp > 0.0 => Ok(Expression::Number(0.0)),
+                Expression::Number(exp) if *exp <= 0.0 => Err(EvaluationError::UndefinedOperation),
+                _ => Ok(self.to_expression()),
+            },
+            _ => Ok(self.to_expression()),
+        }
+    }
+
+    fn to_expression(self) -> Expression {
+        Expression::BinaryOp {
+            left: Box::new(self.left),
+            op: self.op,
+            right: Box::new(self.right),
+        }
+    }
+}
+
+struct UnaryOperation {
+    op: UnaryOperator,
+    operand: Expression,
+}
+
+impl UnaryOperation {
+    fn new(op: UnaryOperator, operand: Expression) -> Self {
+        Self { op, operand }
+    }
+
+    fn simplify(self) -> Result<Expression, EvaluationError> {
+        match (&self.op, &self.operand) {
             // Direct computation for numbers
             (UnaryOperator::Plus, Expression::Number(n)) => Ok(Expression::Number(*n)),
             (UnaryOperator::Minus, Expression::Number(n)) => Ok(Expression::Number(-n)),
+
+            // +x = x
+            (UnaryOperator::Plus, operand) => Ok(operand.clone()),
 
             // Double negative: -(-x) = x
             (
@@ -325,29 +373,7 @@ impl Context {
                 },
             ) => Ok(inner.as_ref().clone()),
 
-            // +(-x) = -x
-            (
-                UnaryOperator::Plus,
-                expr @ Expression::UnaryOp {
-                    op: UnaryOperator::Minus,
-                    ..
-                },
-            ) => Ok(expr.clone()),
-
-            // -(+x) = -x
-            (
-                UnaryOperator::Minus,
-                Expression::UnaryOp {
-                    op: UnaryOperator::Plus,
-                    operand: inner,
-                },
-            ) => self.reduce_unary_op(&UnaryOperator::Minus, inner),
-
-            // +x = x if x is already simplified
-            (UnaryOperator::Plus, operand) => Ok(operand.clone()),
-
-            // Distribute minus over addition/subtraction
-            // -(a + b) = -a - b
+            // Distribute minus over binary operations
             (
                 UnaryOperator::Minus,
                 Expression::BinaryOp {
@@ -356,12 +382,13 @@ impl Context {
                     right,
                 },
             ) => {
-                let neg_left = self.reduce_unary_op(&UnaryOperator::Minus, left)?;
-                let neg_right = self.reduce_unary_op(&UnaryOperator::Minus, right)?;
-                self.reduce_binary_op(&neg_left, &BinaryOperator::Subtract, &neg_right)
+                let neg_left =
+                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).simplify()?;
+                let neg_right =
+                    UnaryOperation::new(UnaryOperator::Minus, right.as_ref().clone()).simplify()?;
+                BinaryOperation::new(neg_left, BinaryOperator::Subtract, neg_right).simplify()
             }
 
-            // -(a - b) = -a + b = b - a
             (
                 UnaryOperator::Minus,
                 Expression::BinaryOp {
@@ -370,11 +397,12 @@ impl Context {
                     right,
                 },
             ) => {
-                let neg_left = self.reduce_unary_op(&UnaryOperator::Minus, left)?;
-                self.reduce_binary_op(right, &BinaryOperator::Add, &neg_left)
+                let neg_left =
+                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).simplify()?;
+                BinaryOperation::new(right.as_ref().clone(), BinaryOperator::Add, neg_left)
+                    .simplify()
             }
 
-            // -(a * b) = (-a) * b
             (
                 UnaryOperator::Minus,
                 Expression::BinaryOp {
@@ -383,19 +411,25 @@ impl Context {
                     right,
                 },
             ) => {
-                let neg_left = self.reduce_unary_op(&UnaryOperator::Minus, left)?;
-                self.reduce_binary_op(&neg_left, &BinaryOperator::Multiply, right)
+                let neg_left =
+                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).simplify()?;
+                BinaryOperation::new(neg_left, BinaryOperator::Multiply, right.as_ref().clone())
+                    .simplify()
             }
 
             // Default case
             _ => Ok(Expression::UnaryOp {
-                op: op.clone(),
-                operand: Box::new(operand.clone()),
+                op: self.op,
+                operand: Box::new(self.operand),
             }),
         }
     }
+}
 
-    fn expressions_equal(&self, left: &Expression, right: &Expression) -> bool {
+struct ExpressionComparer;
+
+impl ExpressionComparer {
+    fn equal(left: &Expression, right: &Expression) -> bool {
         match (left, right) {
             (Expression::Number(a), Expression::Number(b)) => (a - b).abs() < f64::EPSILON,
             (Expression::Variable(a), Expression::Variable(b)) => a == b,
@@ -410,7 +444,7 @@ impl Context {
                     op: op2,
                     right: r2,
                 },
-            ) => op1 == op2 && self.expressions_equal(l1, l2) && self.expressions_equal(r1, r2),
+            ) => op1 == op2 && Self::equal(l1, l2) && Self::equal(r1, r2),
             (
                 Expression::UnaryOp {
                     op: op1,
@@ -420,14 +454,8 @@ impl Context {
                     op: op2,
                     operand: o2,
                 },
-            ) => op1 == op2 && self.expressions_equal(o1, o2),
+            ) => op1 == op2 && Self::equal(o1, o2),
             _ => false,
         }
-    }
-}
-
-impl Default for Context {
-    fn default() -> Self {
-        Self::new()
     }
 }
