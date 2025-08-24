@@ -1,9 +1,16 @@
 use computor_v2::{Context, LineParser, ParsedLine};
 
-use rustyline::{error::ReadlineError, DefaultEditor, Result as RustylineResult};
+use rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult};
 
 fn main() -> RustylineResult<()> {
-    let mut reader = DefaultEditor::new()?;
+    let config = Config::builder().history_ignore_dups(true)?.build();
+    let history_file = "history.txt";
+
+    let mut reader: Editor<(), _> = Editor::with_config(config)?;
+    if reader.load_history(history_file).is_err() {
+        println!("No history found.");
+    }
+
     let mut context = Context::new();
     let parser = LineParser::new();
 
@@ -47,6 +54,8 @@ fn main() -> RustylineResult<()> {
             }
         }
     }
+
+    reader.save_history(history_file)?;
 
     Ok(())
 }
