@@ -8,6 +8,7 @@ pub enum Token {
     Minus,
     Multiply,
     Divide,
+    Modulo,
     Power,
     LeftParen,
     RightParen,
@@ -118,6 +119,10 @@ impl Tokenizer {
                 '/' => {
                     self.advance();
                     Ok(Token::Divide)
+                }
+                '%' => {
+                    self.advance();
+                    Ok(Token::Modulo)
                 }
                 '^' => {
                     self.advance();

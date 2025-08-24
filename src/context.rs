@@ -33,7 +33,10 @@ impl Context {
         self.set_variable(name, value);
     }
 
-    pub fn evaluate_expression(&self, expression: &Expression) -> Result<Expression, EvaluationError> {
+    pub fn evaluate_expression(
+        &self,
+        expression: &Expression,
+    ) -> Result<Expression, EvaluationError> {
         self.evaluate_expression_with_scope(expression, &HashMap::new())
     }
 
@@ -201,6 +204,7 @@ impl BinaryOperation {
         // Apply basic algebraic simplifications
         match self.op {
             BinaryOperator::Add => self.simplify_addition(),
+            BinaryOperator::Modulo => self.simplify_modulo(),
             BinaryOperator::Subtract => self.simplify_subtraction(),
             BinaryOperator::Multiply => self.simplify_multiplication(),
             BinaryOperator::Divide => self.simplify_division(),
@@ -211,6 +215,7 @@ impl BinaryOperation {
     fn compute_numeric(&self, a: f64, b: f64) -> Result<Expression, EvaluationError> {
         let result = match self.op {
             BinaryOperator::Add => a + b,
+            BinaryOperator::Modulo => a % b,
             BinaryOperator::Subtract => a - b,
             BinaryOperator::Multiply => a * b,
             BinaryOperator::Divide => {
@@ -314,6 +319,68 @@ impl BinaryOperation {
                     Ok(Expression::Number(0.0))
                 }
             }
+            _ => Ok(self.to_expression()),
+        }
+    }
+
+    fn simplify_modulo(self) -> Result<Expression, EvaluationError> {
+        match (&self.left, &self.right) {
+            // x % 1 = 0 (for any real number x)
+            (_, Expression::Number(n)) if *n == 1.0 => Ok(Expression::Number(0.0)),
+
+            // 0 % x = 0 (for any non-zero x)
+            (Expression::Number(n), right) if *n == 0.0 => {
+                if let Expression::Number(0.0) = right {
+                    Err(EvaluationError::UndefinedOperation)
+                } else {
+                    Ok(Expression::Number(0.0))
+                }
+            }
+
+            // x % x = 0 (for any non-zero x)
+            (left, right) if left == right => {
+                // Need to check if it's zero at runtime for variables
+                match left {
+                    Expression::Number(n) if *n == 0.0 => Err(EvaluationError::UndefinedOperation),
+                    Expression::Number(_) => Ok(Expression::Number(0.0)),
+                    _ => Ok(self.to_expression()), // Keep symbolic for variables
+                }
+            }
+
+            // Handle modulo by zero
+            (_, Expression::Number(n)) if *n == 0.0 => Err(EvaluationError::UndefinedOperation),
+
+            // x % -y = x % y (modulo has same result regardless of divisor sign)
+            (
+                left,
+                Expression::UnaryOp {
+                    op: UnaryOperator::Minus,
+                    operand: right_inner,
+                },
+            ) => BinaryOperation::new(
+                left.clone(),
+                BinaryOperator::Modulo,
+                right_inner.as_ref().clone(),
+            )
+            .simplify(),
+
+            // (-x) % y = -(x % y) (for positive y)
+            (
+                Expression::UnaryOp {
+                    op: UnaryOperator::Minus,
+                    operand: left_inner,
+                },
+                right,
+            ) => {
+                let inner_mod = BinaryOperation::new(
+                    left_inner.as_ref().clone(),
+                    BinaryOperator::Modulo,
+                    right.clone(),
+                )
+                .simplify()?;
+                UnaryOperation::new(UnaryOperator::Minus, inner_mod).simplify()
+            }
+
             _ => Ok(self.to_expression()),
         }
     }

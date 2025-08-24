@@ -219,6 +219,15 @@ impl LineParser {
                         right: Box::new(right),
                     };
                 }
+                Token::Modulo => {
+                    *pos += 1;
+                    let right = self.parse_power(tokens, pos)?;
+                    left = Expression::BinaryOp {
+                        left: Box::new(left),
+                        op: BinaryOperator::Modulo,
+                        right: Box::new(right),
+                    };
+                }
                 // Handle implicit multiplication (like "3b")
                 Token::Identifier(_) | Token::LeftParen => {
                     let right = self.parse_power(tokens, pos)?;

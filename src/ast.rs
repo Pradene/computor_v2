@@ -141,6 +141,7 @@ impl fmt::Display for Expression {
 pub enum BinaryOperator {
     Add,
     Subtract,
+    Modulo,
     Multiply,
     Divide,
     Power,
@@ -153,6 +154,7 @@ impl fmt::Display for BinaryOperator {
             BinaryOperator::Subtract => write!(f, "-"),
             BinaryOperator::Multiply => write!(f, "*"),
             BinaryOperator::Divide => write!(f, "/"),
+            BinaryOperator::Modulo => write!(f, "%"),
             BinaryOperator::Power => write!(f, "^"),
         }
     }
