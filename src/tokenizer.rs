@@ -11,6 +11,9 @@ pub enum Token {
     Power,
     LeftParen,
     RightParen,
+    LeftBracket,
+    RightBracket,
+    Semicolon,
     Equal,
     Question,
     Comma,
@@ -131,6 +134,18 @@ impl Tokenizer {
                 '=' => {
                     self.advance();
                     Ok(Token::Equal)
+                }
+                '[' => {
+                    self.advance();
+                    Ok(Token::LeftBracket)
+                }
+                ']' => {
+                    self.advance();
+                    Ok(Token::RightBracket)
+                }
+                ';' => {
+                    self.advance();
+                    Ok(Token::Semicolon)
                 }
                 '?' => {
                     self.advance();

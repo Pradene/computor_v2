@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::Matrix;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Variable(Expression),
@@ -23,6 +25,7 @@ impl fmt::Display for Value {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Number(f64),
+    Matrix(Matrix),
     Variable(String),
     FunctionCall {
         name: String,
@@ -44,21 +47,23 @@ impl fmt::Display for Expression {
         match self {
             Expression::Number(n) => {
                 if n.fract() == 0.0 {
-                    write!(f, "{}", *n as i64)
+                    write!(f, "{}", *n as i64)?
                 } else {
-                    write!(f, "{}", n)
+                    write!(f, "{}", n)?
                 }
             }
-            Expression::Variable(name) => write!(f, "{}", name),
+            Expression::Matrix(matrix) => write!(f, "{}", matrix)?,
+            Expression::Variable(name) => write!(f, "{}", name)?,
             Expression::FunctionCall { name, args } => {
-                write!(f, "{}(", name)?;
+                write!(f, "{}", name)?;
+                write!(f, "(")?;
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
                     write!(f, "{}", arg)?;
                 }
-                write!(f, ")")
+                write!(f, ")")?
             }
             Expression::BinaryOp { left, op, right } => {
                 let needs_left_parens = match (op, left.as_ref()) {
@@ -101,16 +106,18 @@ impl fmt::Display for Expression {
                 write!(f, " {} ", op)?;
 
                 if needs_right_parens {
-                    write!(f, "({})", right)
+                    write!(f, "({})", right)?
                 } else {
-                    write!(f, "{}", right)
+                    write!(f, "{}", right)?
                 }
             }
             Expression::UnaryOp { op, operand } => match operand.as_ref() {
-                Expression::BinaryOp { .. } => write!(f, "{}({})", op, operand),
-                _ => write!(f, "{}{}", op, operand),
+                Expression::BinaryOp { .. } => write!(f, "{}({})", op, operand)?,
+                _ => write!(f, "{}{}", op, operand)?,
             },
         }
+
+        Ok(())
     }
 }
 

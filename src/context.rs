@@ -30,6 +30,9 @@ impl Context {
         self.evaluate_expression(expression, &HashMap::new())
     }
 
+    // TODO: Need to return a string or maybe an expression
+    // because undefined variable can be a thing
+    // also because of matrix type, and complex numbers later
     pub fn evaluate_expression(
         &self,
         expr: &Expression,
@@ -37,6 +40,7 @@ impl Context {
     ) -> Result<f64, EvaluationError> {
         match expr {
             Expression::Number(n) => Ok(*n),
+            Expression::Matrix(_) => Ok(0f64),
             Expression::Variable(name) => {
                 // First check parameter scope, then context variables
                 if let Some(&value) = param_scope.get(name) {

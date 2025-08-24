@@ -1,5 +1,6 @@
 use crate::ast::{BinaryOperator, Expression, UnaryOperator, Value};
 use crate::error::ParseError;
+use crate::matrix::Matrix;
 use crate::tokenizer::{Token, Tokenizer};
 
 #[derive(Debug, Clone)]
@@ -255,6 +256,7 @@ impl LineParser {
                 *pos += 1;
                 Ok(Expression::Number(*n))
             }
+            Token::LeftBracket => self.parse_matrix(tokens, pos),
             Token::Identifier(name) => {
                 *pos += 1;
                 // Check for function call
@@ -307,6 +309,71 @@ impl LineParser {
             }
             _ => Err(ParseError::UnexpectedToken(format!("{:?}", tokens[*pos]))),
         }
+    }
+
+    fn parse_matrix(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+        // consume '['
+        *pos += 1;
+
+        let mut rows = Vec::new();
+
+        while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
+            if tokens[*pos] != Token::LeftBracket {
+                return Err(ParseError::InvalidSyntax(
+                    "Expected '[' for matrix row".to_string(),
+                ));
+            }
+
+            // consume '['
+            *pos += 1;
+            let mut row = Vec::new();
+
+            // Parse row elements
+            while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
+                let expr = self.parse_addition(tokens, pos)?;
+
+                // For now, only allow numbers in matrices
+                if let Expression::Number(n) = expr {
+                    row.push(n);
+                } else {
+                    return Err(ParseError::InvalidSyntax(
+                        "Only numbers allowed in matrices".to_string(),
+                    ));
+                }
+
+                if *pos < tokens.len() && tokens[*pos] == Token::Comma {
+                    // consume ','
+                    *pos += 1;
+                }
+            }
+
+            if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
+                return Err(ParseError::InvalidSyntax(
+                    "Missing ']' for matrix row".to_string(),
+                ));
+            }
+            // consume ']'
+            *pos += 1;
+
+            rows.push(row);
+
+            if *pos < tokens.len() && tokens[*pos] == Token::Semicolon {
+                // consume ';'
+                *pos += 1;
+            }
+        }
+
+        if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
+            return Err(ParseError::InvalidSyntax(
+                "Missing ']' for matrix".to_string(),
+            ));
+        }
+        // consume ']'
+        *pos += 1;
+
+        let matrix = Matrix::new(rows).map_err(|e| ParseError::InvalidSyntax(e))?;
+
+        Ok(Expression::Matrix(matrix))
     }
 }
 
