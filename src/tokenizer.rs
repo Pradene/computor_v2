@@ -4,6 +4,7 @@ use crate::error::ParseError;
 pub enum Token {
     Number(f64),
     Identifier(String),
+    Imaginary,
     Plus,
     Minus,
     Multiply,
@@ -51,6 +52,10 @@ impl Tokenizer {
 
     fn current_char(&self) -> Option<char> {
         self.input.get(self.position).copied()
+    }
+
+    fn peek_char(&self, offset: usize) -> Option<char> {
+        self.input.get(self.position + offset).copied()
     }
 
     fn advance(&mut self) {
@@ -159,6 +164,20 @@ impl Tokenizer {
                 ',' => {
                     self.advance();
                     Ok(Token::Comma)
+                }
+                'i' => {
+                    if let Some(next) = self.peek_char(1) {
+                        if next.is_ascii_alphanumeric() {
+                            let ident = self.read_identifier();
+                            Ok(Token::Identifier(ident))
+                        } else {
+                            self.advance();
+                            Ok(Token::Imaginary)
+                        }
+                    } else {
+                        self.advance();
+                        Ok(Token::Imaginary)
+                    }
                 }
                 _ if ch.is_ascii_digit() => {
                     let num = self.read_number()?;
