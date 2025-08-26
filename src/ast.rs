@@ -4,28 +4,9 @@ use crate::complex::Complex;
 use crate::matrix::Matrix;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value {
-    Variable(Expression),
-    Function {
-        params: Vec<String>,
-        body: Expression,
-    },
-}
-
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::Variable(expr) => write!(f, "{}", expr),
-            Value::Function { body, .. } => {
-                write!(f, "{}", body)
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
-    Number(Complex),
+    Real(f64),
+    Complex(Complex),
     Matrix(Matrix),
     Variable(String),
     FunctionCall {
@@ -46,7 +27,10 @@ pub enum Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expression::Number(n) => {
+            Expression::Real(n) => {
+                write!(f, "{}", n)?
+            }
+            Expression::Complex(n) => {
                 if n.is_real() {
                     if n.real.fract() == 0.0 {
                         write!(f, "{}", n.real as i64)?

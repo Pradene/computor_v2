@@ -1,8 +1,9 @@
-use crate::ast::{BinaryOperator, Expression, UnaryOperator, Value};
+use crate::ast::{BinaryOperator, Expression, UnaryOperator};
 use crate::complex::Complex;
 use crate::error::ParseError;
 use crate::matrix::Matrix;
 use crate::tokenizer::{Token, Tokenizer};
+use crate::context::Value;
 
 #[derive(Debug, Clone)]
 pub enum ParsedLine {
@@ -294,11 +295,11 @@ impl LineParser {
         match &tokens[*pos] {
             Token::Number(n) => {
                 *pos += 1;
-                Ok(Expression::Number(Complex::new(*n, 0.0)))
+                Ok(Expression::Complex(Complex::new(*n, 0.0)))
             }
             Token::Imaginary => {
                 *pos += 1;
-                Ok(Expression::Number(Complex::new(0.0, 1.0)))
+                Ok(Expression::Complex(Complex::new(0.0, 1.0)))
             }
             Token::LeftBracket => self.parse_matrix(tokens, pos),
             Token::Identifier(name) => self.parse_identifier(tokens, pos, name.clone()),
