@@ -238,6 +238,12 @@ impl LineParser {
                         right: Box::new(right),
                     };
                 }
+                Token::Number(_) => {
+                    // Disallow number after any expression (ex: a5)
+                    return Err(ParseError::InvalidSyntax(
+                        "Numbers cannot directly follow expressions".to_string()
+                    ));
+                }
                 _ => break,
             }
         }
