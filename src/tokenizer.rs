@@ -93,7 +93,7 @@ impl Tokenizer {
         let start = self.position;
 
         while let Some(ch) = self.current_char() {
-            if ch.is_ascii_alphanumeric() {
+            if ch.is_ascii_alphabetic() {
                 self.advance();
             } else {
                 break;
@@ -167,7 +167,7 @@ impl Tokenizer {
                 }
                 'i' => {
                     if let Some(next) = self.peek_char(1) {
-                        if next.is_ascii_alphanumeric() {
+                        if next.is_ascii_alphabetic() {
                             let ident = self.read_identifier();
                             Ok(Token::Identifier(ident))
                         } else {
