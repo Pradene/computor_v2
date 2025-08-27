@@ -1,3 +1,4 @@
+use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -161,5 +162,56 @@ impl Complex {
 
     pub fn is_nan(&self) -> bool {
         self.real.is_nan() || self.imag.is_nan()
+    }
+}
+
+impl fmt::Display for Complex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_real() {
+            if self.real.fract() == 0.0 {
+                write!(f, "{}", self.real as i64)?;
+            } else {
+                write!(f, "{}", self.real)?;
+            }
+        } else if self.real == 0.0 {
+            if self.imag == 1.0 {
+                write!(f, "i")?;
+            } else if self.imag == -1.0 {
+                write!(f, "-i")?;
+            } else if self.imag.fract() == 0.0 {
+                write!(f, "{}i", self.imag as i64)?;
+            } else {
+                write!(f, "{}i", self.imag)?;
+            }
+        } else {
+            if self.real.fract() == 0.0 {
+                write!(f, "{}", self.real as i64)?;
+            } else {
+                write!(f, "{}", self.real)?;
+            }
+
+            if self.imag > 0.0 {
+                write!(f, " + ")?;
+                if self.imag == 1.0 {
+                    write!(f, "i")?;
+                } else if self.imag.fract() == 0.0 {
+                    write!(f, "{}i", self.imag as i64)?;
+                } else {
+                    write!(f, "{}i", self.imag)?;
+                }
+            } else {
+                write!(f, " - ")?;
+                let abs_imag = self.imag.abs();
+                if abs_imag == 1.0 {
+                    write!(f, "i")?
+                } else if abs_imag.fract() == 0.0 {
+                    write!(f, "{}i", abs_imag as i64)?;
+                } else {
+                    write!(f, "{}i", abs_imag)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }

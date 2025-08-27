@@ -1,3 +1,4 @@
+use std::fmt;
 use std::ops::{Add, Mul, Neg, Sub};
 
 use crate::expression::Expression;
@@ -165,5 +166,27 @@ impl Neg for Matrix {
             Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
             Err(e) => Err(e.to_string()),
         }
+    }
+}
+
+impl fmt::Display for Matrix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        for r in 0..self.rows {
+            if r > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "[")?;
+            for c in 0..self.cols {
+                if c > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", self.get(r, c).unwrap())?;
+            }
+            write!(f, "]")?;
+        }
+        write!(f, "]")?;
+
+        Ok(())
     }
 }

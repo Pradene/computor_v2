@@ -474,69 +474,8 @@ impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expression::Real(n) => write!(f, "{}", n)?,
-            Expression::Complex(n) => {
-                if n.is_real() {
-                    if n.real.fract() == 0.0 {
-                        write!(f, "{}", n.real as i64)?;
-                    } else {
-                        write!(f, "{}", n.real)?;
-                    }
-                } else if n.real == 0.0 {
-                    if n.imag == 1.0 {
-                        write!(f, "i")?;
-                    } else if n.imag == -1.0 {
-                        write!(f, "-i")?;
-                    } else if n.imag.fract() == 0.0 {
-                        write!(f, "{}i", n.imag as i64)?;
-                    } else {
-                        write!(f, "{}i", n.imag)?;
-                    }
-                } else {
-                    if n.real.fract() == 0.0 {
-                        write!(f, "{}", n.real as i64)?;
-                    } else {
-                        write!(f, "{}", n.real)?;
-                    }
-
-                    if n.imag > 0.0 {
-                        write!(f, " + ")?;
-                        if n.imag == 1.0 {
-                            write!(f, "i")?;
-                        } else if n.imag.fract() == 0.0 {
-                            write!(f, "{}i", n.imag as i64)?;
-                        } else {
-                            write!(f, "{}i", n.imag)?;
-                        }
-                    } else {
-                        write!(f, " - ")?;
-                        let abs_imag = n.imag.abs();
-                        if abs_imag == 1.0 {
-                            write!(f, "i")?
-                        } else if abs_imag.fract() == 0.0 {
-                            write!(f, "{}i", abs_imag as i64)?;
-                        } else {
-                            write!(f, "{}i", abs_imag)?;
-                        }
-                    }
-                }
-            }
-            Expression::Matrix(matrix) => {
-                write!(f, "[")?;
-                for r in 0..matrix.rows() {
-                    if r > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "[")?;
-                    for c in 0..matrix.cols() {
-                        if c > 0 {
-                            write!(f, ", ")?;
-                        }
-                        write!(f, "{}", matrix.get(r, c).unwrap())?;
-                    }
-                    write!(f, "]")?;
-                }
-                write!(f, "]")?;
-            }
+            Expression::Complex(n) => write!(f, "{}", n)?,
+            Expression::Matrix(matrix) => write!(f, "{}", matrix)?,
             Expression::Variable(name) => write!(f, "{}", name)?,
             Expression::FunctionCall { name, args } => {
                 write!(f, "{}", name)?;
