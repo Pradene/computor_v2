@@ -1,5 +1,5 @@
 use computor_v2::context::Context;
-use computor_v2::parser::{LineParser, ParsedLine};
+use computor_v2::parsing::parser::{LineParser, ParsedLine};
 
 use rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult};
 

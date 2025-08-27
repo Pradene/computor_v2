@@ -1,6 +1,7 @@
 use std::ops::{Add, Mul, Sub};
 
-use crate::{complex::Complex, expression::Expression};
+use crate::types::complex::Complex;
+use crate::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {

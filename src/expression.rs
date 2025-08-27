@@ -1,9 +1,9 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
-use crate::complex::Complex;
+use crate::types::matrix::Matrix;
+use crate::types::complex::Complex;
 use crate::error::EvaluationError;
-use crate::matrix::Matrix;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOperator {
