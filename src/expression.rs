@@ -478,19 +478,6 @@ impl Power for Expression {
     }
 }
 
-pub trait Plus {
-    type Output;
-    fn plus(self) -> Self::Output;
-}
-
-impl Plus for Expression {
-    type Output = Result<Expression, EvaluationError>;
-
-    fn plus(self) -> Self::Output {
-        Ok(self) // +x = x
-    }
-}
-
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -498,35 +485,35 @@ impl fmt::Display for Expression {
             Expression::Complex(n) => {
                 if n.is_real() {
                     if n.real.fract() == 0.0 {
-                        write!(f, "{}", n.real as i64)?
+                        write!(f, "{}", n.real as i64)?;
                     } else {
-                        write!(f, "{}", n.real)?
+                        write!(f, "{}", n.real)?;
                     }
                 } else if n.real == 0.0 {
                     if n.imag == 1.0 {
-                        write!(f, "i")?
+                        write!(f, "i")?;
                     } else if n.imag == -1.0 {
-                        write!(f, "-i")?
+                        write!(f, "-i")?;
                     } else if n.imag.fract() == 0.0 {
-                        write!(f, "{}i", n.imag as i64)?
+                        write!(f, "{}i", n.imag as i64)?;
                     } else {
-                        write!(f, "{}i", n.imag)?
+                        write!(f, "{}i", n.imag)?;
                     }
                 } else {
                     if n.real.fract() == 0.0 {
-                        write!(f, "{}", n.real as i64)?
+                        write!(f, "{}", n.real as i64)?;
                     } else {
-                        write!(f, "{}", n.real)?
+                        write!(f, "{}", n.real)?;
                     }
 
                     if n.imag > 0.0 {
                         write!(f, " + ")?;
                         if n.imag == 1.0 {
-                            write!(f, "i")?
+                            write!(f, "i")?;
                         } else if n.imag.fract() == 0.0 {
-                            write!(f, "{}i", n.imag as i64)?
+                            write!(f, "{}i", n.imag as i64)?;
                         } else {
-                            write!(f, "{}i", n.imag)?
+                            write!(f, "{}i", n.imag)?;
                         }
                     } else {
                         write!(f, " - ")?;
@@ -534,29 +521,29 @@ impl fmt::Display for Expression {
                         if abs_imag == 1.0 {
                             write!(f, "i")?
                         } else if abs_imag.fract() == 0.0 {
-                            write!(f, "{}i", abs_imag as i64)?
+                            write!(f, "{}i", abs_imag as i64)?;
                         } else {
-                            write!(f, "{}i", abs_imag)?
+                            write!(f, "{}i", abs_imag)?;
                         }
                     }
                 }
             }
             Expression::Matrix(matrix) => {
                 write!(f, "[")?;
-                for (i, row) in matrix.iter().enumerate() {
-                    if i > 0 {
+                for r in 0..matrix.rows() {
+                    if r > 0 {
                         write!(f, ", ")?;
                     }
                     write!(f, "[")?;
-                    for (j, expr) in row.iter().enumerate() {
-                        if j > 0 {
+                    for c in 0..matrix.cols() {
+                        if c > 0 {
                             write!(f, ", ")?;
                         }
-                        write!(f, "{}", expr)?;
+                        write!(f, "{}", matrix.get(r, c).unwrap())?;
                     }
                     write!(f, "]")?;
                 }
-                write!(f, "]")?
+                write!(f, "]")?;
             }
             Expression::Variable(name) => write!(f, "{}", name)?,
             Expression::FunctionCall { name, args } => {
@@ -568,7 +555,7 @@ impl fmt::Display for Expression {
                     }
                     write!(f, "{}", arg)?;
                 }
-                write!(f, ")")?
+                write!(f, ")")?;
             }
             Expression::BinaryOp { left, op, right } => {
                 let needs_left_parens = match (op, left.as_ref()) {
@@ -611,9 +598,9 @@ impl fmt::Display for Expression {
                 write!(f, " {} ", op)?;
 
                 if needs_right_parens {
-                    write!(f, "({})", right)?
+                    write!(f, "({})", right)?;
                 } else {
-                    write!(f, "{}", right)?
+                    write!(f, "{}", right)?;
                 }
             }
             Expression::UnaryOp { op, operand } => match operand.as_ref() {

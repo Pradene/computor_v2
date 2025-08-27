@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::error::EvaluationError;
-use crate::expression::{BinaryOperator, Expression, Plus, Power, UnaryOperator};
+use crate::expression::{BinaryOperator, Expression, Power, UnaryOperator};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContextValue {
@@ -75,7 +75,7 @@ impl Context {
                 let operand_eval = self.evaluate_expression_with_scope(operand, param_scope)?;
 
                 match op {
-                    UnaryOperator::Plus => operand_eval.plus(),
+                    UnaryOperator::Plus => Ok(operand_eval),
                     UnaryOperator::Minus => -operand_eval,
                 }
             }
