@@ -407,14 +407,11 @@ impl Neg for Expression {
         match self {
             Expression::Real(n) => Ok(Expression::Real(-n)),
             Expression::Complex(c) => Ok(Expression::Complex(-c)),
-            Expression::Matrix(_m) => {
-                return Err(EvaluationError::InvalidOperation(
-                    "Matrix negation not implemented".to_string(),
-                ));
-                // m.neg().map(Expression::Matrix).map_err(|_| {
-                //     EvaluationError::InvalidOperation("Matrix negation failed".to_string())?
-                // }),
-            }
+            Expression::Matrix(m) => 
+                (-m).map(Expression::Matrix).map_err(|_| {
+                    EvaluationError::InvalidOperation("Matrix negation failed".to_string())
+                }),
+            
             // Double negative: -(-x) = x
             Expression::UnaryOp {
                 op: UnaryOperator::Minus,

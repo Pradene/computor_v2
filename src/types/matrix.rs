@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Sub, Neg};
 
 use crate::types::complex::Complex;
 use crate::expression::Expression;
@@ -112,5 +112,21 @@ impl Mul for Matrix {
         }
 
         Matrix::new(result, self.rows, rhs.cols)
+    }
+}
+
+impl Neg for Matrix {
+    type Output = Result<Self, String>;
+
+    fn neg(self) -> Self::Output {
+        let result: Result<Vec<Expression>, _> = self.data
+            .into_iter()
+            .map(|x| -x)
+            .collect();
+
+        match result {
+            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Err(e) => Err(e.to_string()),
+        }
     }
 }
