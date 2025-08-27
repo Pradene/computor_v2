@@ -1,5 +1,5 @@
 use std::fmt;
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::expression::Expression;
 use crate::types::complex::Complex;
@@ -147,6 +147,40 @@ impl Mul<Complex> for Matrix {
             .data
             .iter()
             .map(|m| m.clone() * Expression::Complex(rhs))
+            .collect();
+
+        match result {
+            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+}
+
+impl Div<f64> for Matrix {
+    type Output = Result<Self, String>;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        let result: Result<Vec<Expression>, _> = self
+            .data
+            .iter()
+            .map(|m| m.clone() / Expression::Real(rhs))
+            .collect();
+
+        match result {
+            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+}
+
+impl Div<Complex> for Matrix {
+    type Output = Result<Self, String>;
+
+    fn div(self, rhs: Complex) -> Self::Output {
+        let result: Result<Vec<Expression>, _> = self
+            .data
+            .iter()
+            .map(|m| m.clone() / Expression::Complex(rhs))
             .collect();
 
         match result {

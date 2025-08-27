@@ -318,6 +318,26 @@ impl Div for Expression {
             }
             (Expression::Complex(a), Expression::Complex(b)) => Ok(Expression::Complex(a / b)),
 
+            // Scalar-matrix division
+            (Expression::Real(_), Expression::Matrix(_)) => 
+                Err(EvaluationError::InvalidOperation("Cannot divide real number by matrix".to_string())),
+            (Expression::Complex(_), Expression::Matrix(_)) =>
+                Err(EvaluationError::InvalidOperation("Cannot divide complex number by matrix".to_string())),
+            (Expression::Matrix(matrix), Expression::Real(scalar)) => {
+                (matrix / scalar).map(Expression::Matrix).map_err(|_| {
+                    EvaluationError::InvalidOperation(
+                        "Scalar-matrix division failed".to_string(),
+                    )
+                })
+            }
+            (Expression::Matrix(matrix), Expression::Complex(scalar)) => {
+                (matrix / scalar).map(Expression::Matrix).map_err(|_| {
+                    EvaluationError::InvalidOperation(
+                        "Scalar-matrix division failed".to_string(),
+                    )
+                })
+            }
+
             // Algebraic simplifications
             (expr, rhs) if rhs.is_one() => Ok(expr), // x / 1 = x
             (lhs, _) if lhs.is_zero() => Ok(Expression::Real(0.0)), // 0 / x = 0
