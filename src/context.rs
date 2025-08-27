@@ -1,13 +1,10 @@
-use std::fmt;
 use std::collections::HashMap;
 
-use crate::ast::{BinaryOperator, Expression, UnaryOperator};
-use crate::complex::Complex;
 use crate::error::EvaluationError;
-use crate::matrix::Matrix;
+use crate::expression::{BinaryOperator, Expression, Plus, Power, UnaryOperator};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value {
+pub enum ContextValue {
     Variable(Expression),
     Function {
         params: Vec<String>,
@@ -15,19 +12,8 @@ pub enum Value {
     },
 }
 
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::Variable(expr) => write!(f, "{}", expr),
-            Value::Function { body, .. } => {
-                write!(f, "{}", body)
-            }
-        }
-    }
-}
-
 pub struct Context {
-    variables: HashMap<String, Value>,
+    variables: HashMap<String, ContextValue>,
 }
 
 impl Default for Context {
@@ -43,51 +29,55 @@ impl Context {
         }
     }
 
-    pub fn set_variable(&mut self, name: String, value: Value) {
-        self.variables.insert(name, value);
+    pub fn assign(&mut self, name: String, value: ContextValue) -> Expression {
+        self.variables.insert(name, value.clone());
+        match value {
+            ContextValue::Variable(expr) => expr,
+            ContextValue::Function { body, .. } => body,
+        }
     }
 
-    pub fn get_variable(&self, name: &str) -> Option<&Value> {
-        self.variables.get(name)
+    pub fn evaluate_expression(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
+        self.evaluate_expression_with_scope(expr, &HashMap::new())
     }
 
-    pub fn assign(&mut self, name: String, value: Value) {
-        self.set_variable(name, value);
-    }
-
-    pub fn evaluate_expression(
-        &self,
-        expression: &Expression,
-    ) -> Result<Expression, EvaluationError> {
-        self.evaluate_expression_with_scope(expression, &HashMap::new())
-    }
-
-    pub fn evaluate_expression_with_scope(
-        &self,
-        expr: &Expression,
-        param_scope: &HashMap<String, Expression>,
-    ) -> Result<Expression, EvaluationError> {
-        self.reduce_expression(expr, param_scope)
-    }
-
-    pub fn reduce_expression(
+    fn evaluate_expression_with_scope(
         &self,
         expr: &Expression,
         param_scope: &HashMap<String, Expression>,
     ) -> Result<Expression, EvaluationError> {
         match expr {
-            Expression::Real(_) => Ok(expr.clone()),
-            Expression::Complex(_) => Ok(expr.clone()),
-            Expression::Matrix(matrix) => self.reduce_matrix(matrix, param_scope),
+            Expression::Real(_) | Expression::Complex(_) | Expression::Matrix(_) => {
+                Ok(expr.clone())
+            }
+
             Expression::Variable(name) => self.resolve_variable(name, param_scope),
+
             Expression::FunctionCall { name, args } => {
-                self.reduce_function_call(name, args, param_scope)
+                self.evaluate_function_call(name, args, param_scope)
             }
+
             Expression::BinaryOp { left, op, right } => {
-                self.reduce_binary_operation(left, op, right, param_scope)
+                let left_eval = self.evaluate_expression_with_scope(left, param_scope)?;
+                let right_eval = self.evaluate_expression_with_scope(right, param_scope)?;
+
+                match op {
+                    BinaryOperator::Add => left_eval + right_eval,
+                    BinaryOperator::Subtract => left_eval - right_eval,
+                    BinaryOperator::Multiply => left_eval * right_eval,
+                    BinaryOperator::Divide => left_eval / right_eval,
+                    BinaryOperator::Modulo => left_eval % right_eval,
+                    BinaryOperator::Power => left_eval.pow(right_eval),
+                }
             }
+
             Expression::UnaryOp { op, operand } => {
-                self.reduce_unary_operation(op, operand, param_scope)
+                let operand_eval = self.evaluate_expression_with_scope(operand, param_scope)?;
+
+                match op {
+                    UnaryOperator::Plus => operand_eval.plus(),
+                    UnaryOperator::Minus => -operand_eval,
+                }
             }
         }
     }
@@ -97,15 +87,15 @@ impl Context {
         name: &str,
         param_scope: &HashMap<String, Expression>,
     ) -> Result<Expression, EvaluationError> {
-        // Check parameter scope first
         if let Some(expr) = param_scope.get(name) {
             return Ok(expr.clone());
         }
 
-        // Check context variables
-        match self.get_variable(name) {
-            Some(Value::Variable(expr)) => self.reduce_expression(expr, param_scope),
-            Some(Value::Function { .. }) => Err(EvaluationError::InvalidOperation(format!(
+        match self.variables.get(name) {
+            Some(ContextValue::Variable(expr)) => {
+                self.evaluate_expression_with_scope(expr, param_scope)
+            }
+            Some(ContextValue::Function { .. }) => Err(EvaluationError::InvalidOperation(format!(
                 "Cannot use function '{}' as variable",
                 name
             ))),
@@ -113,496 +103,53 @@ impl Context {
         }
     }
 
-    fn reduce_matrix(
-        &self,
-        matrix: &Matrix,
-        param_scope: &HashMap<String, Expression>,
-    ) -> Result<Expression, EvaluationError> {
-        let mut reduced_data = Vec::new();
-        for row in matrix.iter() {
-            let mut reduced_row = Vec::new();
-            for elem in row {
-                reduced_row.push(self.reduce_expression(elem, param_scope)?);
-            }
-            reduced_data.push(reduced_row);
-        }
-        let reduced_matrix = Matrix::new(reduced_data).map_err(|_| {
-            EvaluationError::InvalidOperation("Matrix reduction failed".to_string())
-        })?;
-        Ok(Expression::Matrix(reduced_matrix))
-    }
-
-    fn reduce_function_call(
+    fn evaluate_function_call(
         &self,
         name: &str,
         args: &[Expression],
         param_scope: &HashMap<String, Expression>,
     ) -> Result<Expression, EvaluationError> {
-        match self.get_variable(name) {
-            Some(Value::Function { params, body }) => {
-                self.execute_function(params, body, args, param_scope)
+        match self.variables.get(name) {
+            Some(ContextValue::Function { params, body }) => {
+                if args.len() != params.len() {
+                    return Err(EvaluationError::WrongArgumentCount {
+                        expected: params.len(),
+                        got: args.len(),
+                    });
+                }
+
+                // Evaluate arguments first
+                let evaluated_args: Result<Vec<_>, _> = args
+                    .iter()
+                    .map(|arg| self.evaluate_expression_with_scope(arg, param_scope))
+                    .collect();
+
+                let evaluated_args = evaluated_args?;
+
+                // Create function scope
+                let mut function_scope = param_scope.clone();
+                for (param, arg) in params.iter().zip(evaluated_args.iter()) {
+                    function_scope.insert(param.clone(), arg.clone());
+                }
+
+                self.evaluate_expression_with_scope(body, &function_scope)
             }
-            Some(Value::Variable(_)) => Err(EvaluationError::InvalidOperation(format!(
+            Some(ContextValue::Variable(_)) => Err(EvaluationError::InvalidOperation(format!(
                 "'{}' is not a function",
                 name
             ))),
             None => {
-                // Reduce arguments and keep as function call
-                let reduced_args = args
+                // Evaluate arguments and keep as symbolic function call
+                let evaluated_args: Result<Vec<_>, _> = args
                     .iter()
-                    .map(|arg| self.reduce_expression(arg, param_scope))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .map(|arg| self.evaluate_expression_with_scope(arg, param_scope))
+                    .collect();
 
                 Ok(Expression::FunctionCall {
                     name: name.to_string(),
-                    args: reduced_args,
+                    args: evaluated_args?,
                 })
             }
-        }
-    }
-
-    fn execute_function(
-        &self,
-        params: &[String],
-        body: &Expression,
-        args: &[Expression],
-        param_scope: &HashMap<String, Expression>,
-    ) -> Result<Expression, EvaluationError> {
-        if args.len() != params.len() {
-            return Err(EvaluationError::WrongArgumentCount {
-                expected: params.len(),
-                got: args.len(),
-            });
-        }
-
-        // Reduce arguments first
-        let reduced_args = args
-            .iter()
-            .map(|arg| self.reduce_expression(arg, param_scope))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // Create function scope
-        let function_scope = params
-            .iter()
-            .zip(reduced_args.iter())
-            .map(|(param, arg)| (param.clone(), arg.clone()))
-            .collect();
-
-        self.reduce_expression(body, &function_scope)
-    }
-
-    fn reduce_binary_operation(
-        &self,
-        left: &Expression,
-        op: &BinaryOperator,
-        right: &Expression,
-        param_scope: &HashMap<String, Expression>,
-    ) -> Result<Expression, EvaluationError> {
-        let left_reduced = self.reduce_expression(left, param_scope)?;
-        let right_reduced = self.reduce_expression(right, param_scope)?;
-
-        BinaryOperation::new(left_reduced, op.clone(), right_reduced).reduce()
-    }
-
-    fn reduce_unary_operation(
-        &self,
-        op: &UnaryOperator,
-        operand: &Expression,
-        param_scope: &HashMap<String, Expression>,
-    ) -> Result<Expression, EvaluationError> {
-        let operand_reduced = self.reduce_expression(operand, param_scope)?;
-        UnaryOperation::new(op.clone(), operand_reduced).reduce()
-    }
-}
-
-struct BinaryOperation {
-    left: Expression,
-    op: BinaryOperator,
-    right: Expression,
-}
-
-impl BinaryOperation {
-    fn new(left: Expression, op: BinaryOperator, right: Expression) -> Self {
-        Self { left, op, right }
-    }
-
-    fn reduce(self) -> Result<Expression, EvaluationError> {
-        // Handle numeric computations first
-        if let (Expression::Complex(a), Expression::Complex(b)) = (&self.left, &self.right) {
-            return self.compute_numeric(*a, *b);
-        }
-
-        // Apply basic algebraic simplifications
-        match self.op {
-            BinaryOperator::Add => self.reduce_addition(),
-            BinaryOperator::Modulo => self.reduce_modulo(),
-            BinaryOperator::Subtract => self.reduce_subtraction(),
-            BinaryOperator::Multiply => self.reduce_multiplication(),
-            BinaryOperator::Divide => self.reduce_division(),
-            BinaryOperator::Power => self.reduce_power(),
-        }
-    }
-
-    fn compute_numeric(&self, a: Complex, b: Complex) -> Result<Expression, EvaluationError> {
-        let result = match self.op {
-            BinaryOperator::Add => a + b,
-            BinaryOperator::Subtract => a - b,
-            BinaryOperator::Multiply => a * b,
-            BinaryOperator::Divide => {
-                if b.is_zero() {
-                    return Err(EvaluationError::DivisionByZero);
-                }
-                a / b
-            }
-            BinaryOperator::Power => a.pow(b),
-            BinaryOperator::Modulo => {
-                if !a.is_real() || !b.is_real() {
-                    return Err(EvaluationError::UnsupportedOperation(
-                        "Modulo operation is only supported for real Complexs".to_string(),
-                    ));
-                }
-                if b.real == 0.0 {
-                    return Err(EvaluationError::InvalidOperation(
-                        "Modulo by zero is undefined".to_string(),
-                    ));
-                }
-                Complex::new(a.real % b.real, 0.0)
-            }
-        };
-        Ok(Expression::Complex(result))
-    }
-
-    fn reduce_addition(self) -> Result<Expression, EvaluationError> {
-        match (&self.left, &self.right) {
-            // 0 + x = x
-            (Expression::Complex(n), right) if n.is_zero() => Ok(right.clone()),
-            // x + 0 = x
-            (left, Expression::Complex(n)) if n.is_zero() => Ok(left.clone()),
-            // x + x = 2*x
-            (left, right) if left == right => Ok(Expression::BinaryOp {
-                left: Box::new(Expression::Complex(Complex::new(2.0, 0.0))),
-                op: BinaryOperator::Multiply,
-                right: Box::new(left.clone()),
-            }),
-            _ => Ok(self.to_expression()),
-        }
-    }
-
-    fn reduce_subtraction(self) -> Result<Expression, EvaluationError> {
-        match (&self.left, &self.right) {
-            // x - 0 = x
-            (left, Expression::Complex(n)) if n.is_zero() => Ok(left.clone()),
-            // 0 - x = -x
-            (Expression::Complex(n), right) if n.is_zero() => {
-                UnaryOperation::new(UnaryOperator::Minus, right.clone()).reduce()
-            }
-            // x - x = 0
-            (left, right) if left == right => Ok(Expression::Complex(Complex::new(0.0, 0.0))),
-            _ => Ok(self.to_expression()),
-        }
-    }
-
-    fn reduce_multiplication(self) -> Result<Expression, EvaluationError> {
-        match (&self.left, &self.right) {
-            // 0 * x = 0
-            (Expression::Complex(n), _) | (_, Expression::Complex(n)) if n.is_zero() => {
-                Ok(Expression::Complex(Complex::new(0.0, 0.0)))
-            }
-            // 1 * x = x
-            (Expression::Complex(n), right) if n.is_one() => Ok(right.clone()),
-            // x * 1 = x
-            (left, Expression::Complex(n)) if n.is_one() => Ok(left.clone()),
-            // Distribute multiplication: a * (b + c) = a*b + a*c
-            (
-                a,
-                Expression::BinaryOp {
-                    left: b,
-                    op: BinaryOperator::Add,
-                    right: c,
-                },
-            ) => {
-                let ab =
-                    BinaryOperation::new(a.clone(), BinaryOperator::Multiply, b.as_ref().clone())
-                        .reduce()?;
-                let ac =
-                    BinaryOperation::new(a.clone(), BinaryOperator::Multiply, c.as_ref().clone())
-                        .reduce()?;
-                BinaryOperation::new(ab, BinaryOperator::Add, ac).reduce()
-            }
-            // (a + b) * c = a*c + b*c
-            (
-                Expression::BinaryOp {
-                    left: a,
-                    op: BinaryOperator::Add,
-                    right: b,
-                },
-                c,
-            ) => {
-                let ac =
-                    BinaryOperation::new(a.as_ref().clone(), BinaryOperator::Multiply, c.clone())
-                        .reduce()?;
-                let bc =
-                    BinaryOperation::new(b.as_ref().clone(), BinaryOperator::Multiply, c.clone())
-                        .reduce()?;
-                BinaryOperation::new(ac, BinaryOperator::Add, bc).reduce()
-            }
-            _ => Ok(self.to_expression()),
-        }
-    }
-
-    fn reduce_division(self) -> Result<Expression, EvaluationError> {
-        match (&self.left, &self.right) {
-            // x / 1 = x
-            (left, Expression::Complex(n)) if n.is_one() => Ok(left.clone()),
-            // 0 / x = 0 (assuming x != 0)
-            (Expression::Complex(n), right) if n.is_zero() => {
-                if let Expression::Complex(divisor) = right {
-                    if divisor.is_zero() {
-                        Err(EvaluationError::DivisionByZero)
-                    } else {
-                        Ok(Expression::Complex(Complex::new(0.0, 0.0)))
-                    }
-                } else {
-                    Ok(Expression::Complex(Complex::new(0.0, 0.0)))
-                }
-            }
-            _ => Ok(self.to_expression()),
-        }
-    }
-
-    fn reduce_modulo(self) -> Result<Expression, EvaluationError> {
-        match (&self.left, &self.right) {
-            // Check if both operands are real Complexs
-            (Expression::Complex(a), Expression::Complex(b)) if a.is_real() && b.is_real() => {
-                if b.real == 0.0 {
-                    return Err(EvaluationError::InvalidOperation(
-                        "Modulo by zero is undefined".to_string(),
-                    ));
-                }
-                Ok(Expression::Complex(Complex::new(a.real % b.real, 0.0)))
-            }
-
-            // x % 1 = 0 (for any real Complex x)
-            (left, Expression::Complex(n)) if n.is_real() && n.real == 1.0 => {
-                // Check if left is real
-                if let Expression::Complex(left_n) = left {
-                    if left_n.is_real() {
-                        Ok(Expression::Complex(Complex::new(0.0, 0.0)))
-                    } else {
-                        Err(EvaluationError::UnsupportedOperation(
-                            "Modulo operation is only supported for real Complexs".to_string(),
-                        ))
-                    }
-                } else {
-                    Ok(self.to_expression()) // Keep symbolic for variables
-                }
-            }
-
-            // 0 % x = 0 (for any non-zero real x)
-            (Expression::Complex(n), right) if n.is_zero() => {
-                if let Expression::Complex(right_n) = right {
-                    if right_n.is_zero() {
-                        Err(EvaluationError::InvalidOperation(
-                            "Modulo by zero is undefined".to_string(),
-                        ))
-                    } else if right_n.is_real() {
-                        Ok(Expression::Complex(Complex::new(0.0, 0.0)))
-                    } else {
-                        Err(EvaluationError::UnsupportedOperation(
-                            "Modulo operation is only supported for real Complexs".to_string(),
-                        ))
-                    }
-                } else {
-                    Ok(Expression::Complex(Complex::new(0.0, 0.0)))
-                }
-            }
-
-            // x % x = 0 (for any non-zero real x)
-            (left, right) if left == right => {
-                match left {
-                    Expression::Complex(n) => {
-                        if n.is_zero() {
-                            Err(EvaluationError::InvalidOperation(
-                                "Modulo by zero is undefined".to_string(),
-                            ))
-                        } else if n.is_real() {
-                            Ok(Expression::Complex(Complex::new(0.0, 0.0)))
-                        } else {
-                            Err(EvaluationError::UnsupportedOperation(
-                                "Modulo operation is only supported for real Complexs".to_string(),
-                            ))
-                        }
-                    }
-                    _ => Ok(self.to_expression()), // Keep symbolic for variables
-                }
-            }
-
-            // Handle modulo by zero
-            (_, Expression::Complex(n)) if n.is_zero() => Err(EvaluationError::InvalidOperation(
-                "Modulo by zero is undefined".to_string(),
-            )),
-
-            // Check for complex Complexs and reject them
-            (Expression::Complex(a), _) | (_, Expression::Complex(a)) if !a.is_real() => {
-                Err(EvaluationError::UnsupportedOperation(
-                    "Modulo operation is only supported for real Complexs".to_string(),
-                ))
-            }
-
-            // x % -y = x % y (modulo has same result regardless of divisor sign)
-            (
-                left,
-                Expression::UnaryOp {
-                    op: UnaryOperator::Minus,
-                    operand: right_inner,
-                },
-            ) => BinaryOperation::new(
-                left.clone(),
-                BinaryOperator::Modulo,
-                right_inner.as_ref().clone(),
-            )
-            .reduce(),
-
-            // (-x) % y = -(x % y) (for positive y)
-            (
-                Expression::UnaryOp {
-                    op: UnaryOperator::Minus,
-                    operand: left_inner,
-                },
-                right,
-            ) => {
-                let inner_mod = BinaryOperation::new(
-                    left_inner.as_ref().clone(),
-                    BinaryOperator::Modulo,
-                    right.clone(),
-                )
-                .reduce()?;
-                UnaryOperation::new(UnaryOperator::Minus, inner_mod).reduce()
-            }
-
-            _ => Ok(self.to_expression()),
-        }
-    }
-
-    fn reduce_power(self) -> Result<Expression, EvaluationError> {
-        match (&self.left, &self.right) {
-            // x^0 = 1
-            (_, Expression::Complex(n)) if n.is_zero() => {
-                Ok(Expression::Complex(Complex::new(1.0, 0.0)))
-            }
-            // x^1 = x
-            (left, Expression::Complex(n)) if n.is_one() => Ok(left.clone()),
-            // 1^x = 1
-            (Expression::Complex(n), _) if n.is_one() => {
-                Ok(Expression::Complex(Complex::new(1.0, 0.0)))
-            }
-            // 0^x
-            (Expression::Complex(n), right) if n.is_zero() => match right {
-                Expression::Complex(exp) => {
-                    if exp.is_real() && exp.real > 0.0 {
-                        Ok(Expression::Complex(Complex::new(0.0, 0.0)))
-                    } else if exp.is_real() && exp.real <= 0.0 {
-                        Err(EvaluationError::InvalidOperation(
-                            "Zero to non-positive power is undefined".to_string(),
-                        ))
-                    } else {
-                        // Complex exponent with zero base is generally undefined
-                        Err(EvaluationError::InvalidOperation(
-                            "Zero to complex power is undefined".to_string(),
-                        ))
-                    }
-                }
-                _ => Ok(self.to_expression()),
-            },
-            _ => Ok(self.to_expression()),
-        }
-    }
-
-    fn to_expression(self) -> Expression {
-        Expression::BinaryOp {
-            left: Box::new(self.left),
-            op: self.op,
-            right: Box::new(self.right),
-        }
-    }
-}
-
-struct UnaryOperation {
-    op: UnaryOperator,
-    operand: Expression,
-}
-
-impl UnaryOperation {
-    fn new(op: UnaryOperator, operand: Expression) -> Self {
-        Self { op, operand }
-    }
-
-    fn reduce(self) -> Result<Expression, EvaluationError> {
-        match (&self.op, &self.operand) {
-            // Direct computation for Complexs
-            (UnaryOperator::Plus, Expression::Complex(n)) => Ok(Expression::Complex(*n)),
-            (UnaryOperator::Minus, Expression::Complex(n)) => Ok(Expression::Complex(-*n)),
-
-            // +x = x
-            (UnaryOperator::Plus, operand) => Ok(operand.clone()),
-
-            // Double negative: -(-x) = x
-            (
-                UnaryOperator::Minus,
-                Expression::UnaryOp {
-                    op: UnaryOperator::Minus,
-                    operand: inner,
-                },
-            ) => Ok(inner.as_ref().clone()),
-
-            // Distribute minus over binary operations
-            (
-                UnaryOperator::Minus,
-                Expression::BinaryOp {
-                    left,
-                    op: BinaryOperator::Add,
-                    right,
-                },
-            ) => {
-                let neg_left =
-                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).reduce()?;
-                let neg_right =
-                    UnaryOperation::new(UnaryOperator::Minus, right.as_ref().clone()).reduce()?;
-                BinaryOperation::new(neg_left, BinaryOperator::Subtract, neg_right).reduce()
-            }
-
-            (
-                UnaryOperator::Minus,
-                Expression::BinaryOp {
-                    left,
-                    op: BinaryOperator::Subtract,
-                    right,
-                },
-            ) => {
-                let neg_left =
-                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).reduce()?;
-                BinaryOperation::new(right.as_ref().clone(), BinaryOperator::Add, neg_left).reduce()
-            }
-
-            (
-                UnaryOperator::Minus,
-                Expression::BinaryOp {
-                    left,
-                    op: BinaryOperator::Multiply,
-                    right,
-                },
-            ) => {
-                let neg_left =
-                    UnaryOperation::new(UnaryOperator::Minus, left.as_ref().clone()).reduce()?;
-                BinaryOperation::new(neg_left, BinaryOperator::Multiply, right.as_ref().clone())
-                    .reduce()
-            }
-
-            // Default case
-            _ => Ok(Expression::UnaryOp {
-                op: self.op,
-                operand: Box::new(self.operand),
-            }),
         }
     }
 }

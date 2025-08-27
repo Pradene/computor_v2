@@ -29,8 +29,8 @@ fn main() -> RustylineResult<()> {
 
                 match parser.parse(&line) {
                     Ok(ParsedLine::Assignment { name, value }) => {
-                        println!("{}", value);
-                        context.assign(name, value);
+                        let expression = context.assign(name, value);
+                        println!("{}", expression);
                     }
                     Ok(ParsedLine::Query { expression }) => {
                         match context.evaluate_expression(&expression) {

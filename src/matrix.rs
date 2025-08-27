@@ -1,4 +1,4 @@
-use crate::ast::Expression;
+use crate::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {

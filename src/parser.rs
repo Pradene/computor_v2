@@ -1,13 +1,13 @@
-use crate::ast::{BinaryOperator, Expression, UnaryOperator};
 use crate::complex::Complex;
+use crate::context::ContextValue;
 use crate::error::ParseError;
+use crate::expression::{BinaryOperator, Expression, UnaryOperator};
 use crate::matrix::Matrix;
 use crate::tokenizer::{Token, Tokenizer};
-use crate::context::Value;
 
 #[derive(Debug, Clone)]
 pub enum ParsedLine {
-    Assignment { name: String, value: Value },
+    Assignment { name: String, value: ContextValue },
     Query { expression: Expression },
 }
 
@@ -67,7 +67,7 @@ impl LineParser {
             // Simple variable assignment
             let expr_tokens = &tokens[eq_pos + 1..tokens.len() - 1];
             let expression = self.parse_expression_from_tokens(expr_tokens)?;
-            let value = Value::Variable(expression);
+            let value = ContextValue::Variable(expression);
             Ok(ParsedLine::Assignment { name, value })
         } else {
             Err(ParseError::InvalidSyntax("Invalid assignment".to_string()))
@@ -99,7 +99,7 @@ impl LineParser {
         let body_tokens = &tokens[param_end + 2..tokens.len() - 1]; // exclude EOF
         let body = self.parse_expression_from_tokens(body_tokens)?;
 
-        let value = Value::Function { params, body };
+        let value = ContextValue::Function { params, body };
         Ok(ParsedLine::Assignment { name, value })
     }
 
