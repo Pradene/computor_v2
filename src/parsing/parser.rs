@@ -243,7 +243,7 @@ impl LineParser {
                 Token::Number(_) => {
                     // Disallow number after any expression (ex: a5)
                     return Err(ParseError::InvalidSyntax(
-                        "Numbers cannot directly follow expressions".to_string()
+                        "Numbers cannot directly follow expressions".to_string(),
                     ));
                 }
                 _ => break,
@@ -387,16 +387,16 @@ impl LineParser {
 
         while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
             let row = self.parse_matrix_row(tokens, pos)?;
-            
+
             // Validate that all elements in the row are not matrices
             for element in &row {
                 if let Expression::Matrix(_) = element {
                     return Err(ParseError::InvalidMatrix(
-                        "Matrix elements cannot be matrices".to_string()
+                        "Matrix elements cannot be matrices".to_string(),
                     ));
                 }
             }
-            
+
             rows.push(row);
 
             if *pos < tokens.len() && tokens[*pos] == Token::Semicolon {
@@ -416,7 +416,12 @@ impl LineParser {
         }
 
         Ok(Expression::Matrix(
-            Matrix::new(rows.iter().flatten().cloned().collect(), rows.len(), rows[0].len()).map_err(|e| ParseError::InvalidMatrix(e))?,
+            Matrix::new(
+                rows.iter().flatten().cloned().collect(),
+                rows.len(),
+                rows[0].len(),
+            )
+            .map_err(|e| ParseError::InvalidMatrix(e))?,
         ))
     }
 

@@ -1,7 +1,7 @@
-use std::ops::{Add, Mul, Sub, Neg};
+use std::ops::{Add, Mul, Neg, Sub};
 
-use crate::types::complex::Complex;
 use crate::expression::Expression;
+use crate::types::complex::Complex;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {
@@ -48,7 +48,9 @@ impl Add for Matrix {
             return Err("Invalid operation matrix doesn't have the same dimension".to_string());
         }
 
-        let result: Result<Vec<Expression>, _> = self.data.iter()
+        let result: Result<Vec<Expression>, _> = self
+            .data
+            .iter()
             .zip(rhs.data.iter())
             .map(|(a, b)| a.clone() + b.clone())
             .collect();
@@ -68,7 +70,9 @@ impl Sub for Matrix {
             return Err("Invalid operation matrix doesn't have the same dimension".to_string());
         }
 
-        let result: Result<Vec<Expression>, _> = self.data.iter()
+        let result: Result<Vec<Expression>, _> = self
+            .data
+            .iter()
             .zip(rhs.data.iter())
             .map(|(a, b)| a.clone() - b.clone())
             .collect();
@@ -85,7 +89,9 @@ impl Mul for Matrix {
 
     fn mul(self, rhs: Self) -> Self::Output {
         if self.cols != rhs.rows {
-            return Err("Invalid operation: left matrix columns must equal right matrix rows".to_string());
+            return Err(
+                "Invalid operation: left matrix columns must equal right matrix rows".to_string(),
+            );
         }
 
         let mut result = Vec::with_capacity(self.rows * rhs.cols);
@@ -93,20 +99,20 @@ impl Mul for Matrix {
         for i in 0..self.rows {
             for j in 0..rhs.cols {
                 let mut sum = Expression::Complex(Complex::new(0.0, 0.0));
-                
+
                 for k in 0..self.cols {
                     let left_elem = self.get(i, k).ok_or("Index out of bounds")?;
                     let right_elem = rhs.get(k, j).ok_or("Index out of bounds")?;
-                    
+
                     let result = left_elem.clone() * right_elem.clone();
                     match result {
                         Err(e) => return Err(e.to_string()),
-                        Ok(_) => {},
+                        Ok(_) => {}
                     };
-                    
+
                     sum = (sum + result.unwrap()).map_err(|e| e.to_string())?;
                 }
-                
+
                 result.push(sum);
             }
         }
@@ -115,14 +121,45 @@ impl Mul for Matrix {
     }
 }
 
+impl Mul<f64> for Matrix {
+    type Output = Result<Self, String>;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        let result: Result<Vec<Expression>, _> = self
+            .data
+            .iter()
+            .map(|m| m.clone() * Expression::Real(rhs))
+            .collect();
+
+        match result {
+            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+}
+
+impl Mul<Complex> for Matrix {
+    type Output = Result<Self, String>;
+
+    fn mul(self, rhs: Complex) -> Self::Output {
+        let result: Result<Vec<Expression>, _> = self
+            .data
+            .iter()
+            .map(|m| m.clone() * Expression::Complex(rhs))
+            .collect();
+
+        match result {
+            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+}
+
 impl Neg for Matrix {
     type Output = Result<Self, String>;
 
     fn neg(self) -> Self::Output {
-        let result: Result<Vec<Expression>, _> = self.data
-            .into_iter()
-            .map(|x| -x)
-            .collect();
+        let result: Result<Vec<Expression>, _> = self.data.into_iter().map(|x| -x).collect();
 
         match result {
             Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),

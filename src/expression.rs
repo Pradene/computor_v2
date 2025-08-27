@@ -1,9 +1,9 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
-use crate::types::matrix::Matrix;
-use crate::types::complex::Complex;
 use crate::error::EvaluationError;
+use crate::types::complex::Complex;
+use crate::types::matrix::Matrix;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOperator {
@@ -102,7 +102,13 @@ impl Expression {
     }
 
     pub fn is_symbolic(&self) -> bool {
-        matches!(self, Expression::Variable(_) | Expression::FunctionCall { .. } | Expression::BinaryOp { .. } | Expression::UnaryOp { .. })
+        matches!(
+            self,
+            Expression::Variable(_)
+                | Expression::FunctionCall { .. }
+                | Expression::BinaryOp { .. }
+                | Expression::UnaryOp { .. }
+        )
     }
 }
 
@@ -129,14 +135,12 @@ impl Add for Expression {
             }
 
             // Invalid mixed operations
-            (Expression::Matrix(_), Expression::Real(_)) |
-            (Expression::Matrix(_), Expression::Complex(_)) |
-            (Expression::Real(_), Expression::Matrix(_)) |
-            (Expression::Complex(_), Expression::Matrix(_)) => {
-                Err(EvaluationError::InvalidOperation(
-                    "Cannot add scalar and matrix".to_string(),
-                ))
-            }
+            (Expression::Matrix(_), Expression::Real(_))
+            | (Expression::Matrix(_), Expression::Complex(_))
+            | (Expression::Real(_), Expression::Matrix(_))
+            | (Expression::Complex(_), Expression::Matrix(_)) => Err(
+                EvaluationError::InvalidOperation("Cannot add scalar and matrix".to_string()),
+            ),
 
             // Algebraic simplifications for numeric types only
             (expr, rhs) if rhs.is_zero() && !expr.is_matrix() => Ok(expr), // x + 0 = x
@@ -179,18 +183,16 @@ impl Sub for Expression {
             }
 
             // Invalid mixed operations
-            (Expression::Matrix(_), Expression::Real(_)) |
-            (Expression::Matrix(_), Expression::Complex(_)) |
-            (Expression::Real(_), Expression::Matrix(_)) |
-            (Expression::Complex(_), Expression::Matrix(_)) => {
-                Err(EvaluationError::InvalidOperation(
-                    "Cannot add scalar and matrix".to_string(),
-                ))
-            }
+            (Expression::Matrix(_), Expression::Real(_))
+            | (Expression::Matrix(_), Expression::Complex(_))
+            | (Expression::Real(_), Expression::Matrix(_))
+            | (Expression::Complex(_), Expression::Matrix(_)) => Err(
+                EvaluationError::InvalidOperation("Cannot add scalar and matrix".to_string()),
+            ),
 
             // Algebraic simplifications
             (expr, rhs) if rhs.clone().is_zero() => Ok(expr), // x - 0 = x
-            (lhs, _) if lhs.is_zero() => -rhs.clone(), // 0 - x = -x
+            (lhs, _) if lhs.is_zero() => -rhs.clone(),        // 0 - x = -x
             (lhs, rhs) if lhs == *rhs => Ok(Expression::Real(0.0)), // x - x = 0
 
             // Convert to symbolic expression
@@ -226,58 +228,33 @@ impl Mul for Expression {
             }
 
             // Scalar-matrix multiplication
-            (Expression::Real(_scalar), Expression::Matrix(_matrix)) => {
-                // matrix
-                // .scalar_mul(Complex::new(scalar, 0.0))
-                // .map(Expression::Matrix)
-                // .map_err(|_| {
-                //     EvaluationError::InvalidOperation(
-                //         "Scalar-matrix multiplication failed".to_string(),
-                //     )
-                // }),
-                return Err(EvaluationError::UnsupportedOperation(
-                    "Matrix multiplication is not supported".to_string(),
-                ));
+            (Expression::Real(scalar), Expression::Matrix(matrix)) => {
+                (matrix * scalar).map(Expression::Matrix).map_err(|_| {
+                    EvaluationError::InvalidOperation(
+                        "Scalar-matrix multiplication failed".to_string(),
+                    )
+                })
             }
-            (Expression::Complex(_scalar), Expression::Matrix(_matrix)) => {
-                // matrix
-                //     .scalar_mul(scalar)
-                //     .map(Expression::Matrix)
-                //     .map_err(|_| {
-                //         EvaluationError::InvalidOperation(
-                //             "Scalar-matrix multiplication failed".to_string(),
-                //         )
-                //     }),
-                return Err(EvaluationError::UnsupportedOperation(
-                    "Matrix multiplication is not supported".to_string(),
-                ));
+            (Expression::Complex(scalar), Expression::Matrix(matrix)) => {
+                (matrix * scalar).map(Expression::Matrix).map_err(|_| {
+                    EvaluationError::InvalidOperation(
+                        "Scalar-matrix multiplication failed".to_string(),
+                    )
+                })
             }
-
-            (Expression::Matrix(_matrix), Expression::Real(_scalar)) => {
-                // matrix
-                //     .scalar_mul(Complex::new(scalar, 0.0))
-                //     .map(Expression::Matrix)
-                //     .map_err(|_| {
-                //         EvaluationError::InvalidOperation(
-                //             "Scalar-matrix multiplication failed".to_string(),
-                //         )
-                //     }),
-                return Err(EvaluationError::UnsupportedOperation(
-                    "Matrix multiplication is not supported".to_string(),
-                ));
+            (Expression::Matrix(matrix), Expression::Real(scalar)) => {
+                (matrix * scalar).map(Expression::Matrix).map_err(|_| {
+                    EvaluationError::InvalidOperation(
+                        "Scalar-matrix multiplication failed".to_string(),
+                    )
+                })
             }
-            (Expression::Matrix(_matrix), Expression::Complex(_scalar)) => {
-                //  matrix
-                //     .scalar_mul(scalar)
-                //     .map(Expression::Matrix)
-                //     .map_err(|_| {
-                //         EvaluationError::InvalidOperation(
-                //             "Scalar-matrix multiplication failed".to_string(),
-                //         )
-                //     }),
-                return Err(EvaluationError::UnsupportedOperation(
-                    "Matrix multiplication is not supported".to_string(),
-                ));
+            (Expression::Matrix(matrix), Expression::Complex(scalar)) => {
+                (matrix * scalar).map(Expression::Matrix).map_err(|_| {
+                    EvaluationError::InvalidOperation(
+                        "Scalar-matrix multiplication failed".to_string(),
+                    )
+                })
             }
 
             // Algebraic simplifications
@@ -407,11 +384,9 @@ impl Neg for Expression {
         match self {
             Expression::Real(n) => Ok(Expression::Real(-n)),
             Expression::Complex(c) => Ok(Expression::Complex(-c)),
-            Expression::Matrix(m) => 
-                (-m).map(Expression::Matrix).map_err(|_| {
-                    EvaluationError::InvalidOperation("Matrix negation failed".to_string())
-                }),
-            
+            Expression::Matrix(m) => (-m).map(Expression::Matrix).map_err(|_| {
+                EvaluationError::InvalidOperation("Matrix negation failed".to_string())
+            }),
             // Double negative: -(-x) = x
             Expression::UnaryOp {
                 op: UnaryOperator::Minus,
