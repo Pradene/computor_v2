@@ -53,7 +53,7 @@ impl Add for Matrix {
             .data
             .iter()
             .zip(rhs.data.iter())
-            .map(|(a, b)| a.clone() + b.clone())
+            .map(|(a, b)| a.clone().add(b.clone()))
             .collect();
 
         match result {
@@ -75,7 +75,7 @@ impl Sub for Matrix {
             .data
             .iter()
             .zip(rhs.data.iter())
-            .map(|(a, b)| a.clone() - b.clone())
+            .map(|(a, b)| a.clone().sub(b.clone()))
             .collect();
 
         match result {
@@ -105,13 +105,13 @@ impl Mul for Matrix {
                     let left_elem = self.get(i, k).ok_or("Index out of bounds")?;
                     let right_elem = rhs.get(k, j).ok_or("Index out of bounds")?;
 
-                    let result = left_elem.clone() * right_elem.clone();
+                    let result = left_elem.clone().mul(right_elem.clone());
                     match result {
                         Err(e) => return Err(e.to_string()),
                         Ok(_) => {}
                     };
 
-                    sum = (sum + result.unwrap()).map_err(|e| e.to_string())?;
+                    sum = (sum.add(result.unwrap())).map_err(|e| e.to_string())?;
                 }
 
                 result.push(sum);
@@ -129,7 +129,7 @@ impl Mul<f64> for Matrix {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone() * Expression::Real(rhs))
+            .map(|m| m.clone().mul(Expression::Real(rhs)))
             .collect();
 
         match result {
@@ -146,7 +146,7 @@ impl Mul<Complex> for Matrix {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone() * Expression::Complex(rhs))
+            .map(|m| m.clone().mul(Expression::Complex(rhs)))
             .collect();
 
         match result {
@@ -163,7 +163,7 @@ impl Div<f64> for Matrix {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone() / Expression::Real(rhs))
+            .map(|m| m.clone().div(Expression::Real(rhs)))
             .collect();
 
         match result {
@@ -180,7 +180,7 @@ impl Div<Complex> for Matrix {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone() / Expression::Complex(rhs))
+            .map(|m| m.clone().div(Expression::Complex(rhs)))
             .collect();
 
         match result {
@@ -194,7 +194,7 @@ impl Neg for Matrix {
     type Output = Result<Self, String>;
 
     fn neg(self) -> Self::Output {
-        let result: Result<Vec<Expression>, _> = self.data.into_iter().map(|x| -x).collect();
+        let result: Result<Vec<Expression>, _> = self.data.into_iter().map(|x| x.neg()).collect();
 
         match result {
             Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),

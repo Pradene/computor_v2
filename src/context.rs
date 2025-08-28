@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::error::EvaluationError;
-use crate::expression::{BinaryOperator, Expression, Power, UnaryOperator};
+use crate::expression::{BinaryOperator, Expression, UnaryOperator};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContextValue {
@@ -67,11 +67,11 @@ impl Context {
                     .reduce()?;
 
                 match op {
-                    BinaryOperator::Add => left_eval + right_eval,
-                    BinaryOperator::Subtract => left_eval - right_eval,
-                    BinaryOperator::Multiply => left_eval * right_eval,
-                    BinaryOperator::Divide => left_eval / right_eval,
-                    BinaryOperator::Modulo => left_eval % right_eval,
+                    BinaryOperator::Add => left_eval.add(right_eval),
+                    BinaryOperator::Subtract => left_eval.sub(right_eval),
+                    BinaryOperator::Multiply => left_eval.mul(right_eval),
+                    BinaryOperator::Divide => left_eval.div(right_eval),
+                    BinaryOperator::Modulo => left_eval.rem(right_eval),
                     BinaryOperator::Power => left_eval.pow(right_eval),
                 }
             }
@@ -81,7 +81,7 @@ impl Context {
 
                 match op {
                     UnaryOperator::Plus => Ok(operand_eval),
-                    UnaryOperator::Minus => -operand_eval,
+                    UnaryOperator::Minus => operand_eval.neg(),
                 }
             }
         }
