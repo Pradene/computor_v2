@@ -39,11 +39,17 @@ impl Context {
         self.variables.get(name)
     }
 
-    pub fn assign(&mut self, name: String, value: ContextValue) -> Expression {
+    pub fn assign(
+        &mut self,
+        name: String,
+        value: ContextValue,
+    ) -> Result<Expression, EvaluationError> {
         self.variables.insert(name, value.clone());
-        match value {
+        let expr = match value {
             ContextValue::Variable(expr) => expr,
             ContextValue::Function { body, .. } => body,
-        }
+        };
+
+        ExpressionEvaluator::new(self).evaluate(&expr)
     }
 }
