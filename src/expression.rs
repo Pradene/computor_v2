@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
@@ -109,6 +110,278 @@ impl Expression {
                 | Expression::BinaryOp { .. }
                 | Expression::UnaryOp { .. }
         )
+    }
+
+    pub fn reduce(&self) -> Result<Expression, EvaluationError> {
+        let mut current = self.clone();
+        const MAX_ITERATIONS: usize = 64; // Prevent infinite loops
+
+        for _ in 0..MAX_ITERATIONS {
+            let collected = current.collect_terms()?;
+            if collected == current {
+                break;
+            }
+            current = collected;
+        }
+
+        Ok(current)
+    }
+
+    /// Collect like terms (e.g., 2x + 3x = 5x, x + x = 2x)
+    fn collect_terms(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::BinaryOp {
+                op: BinaryOperator::Add,
+                ..
+            } => {
+                let mut terms = HashMap::new();
+                self.collect_addition_terms(&mut terms)?;
+                self.rebuild_from_terms(terms)
+            }
+            Expression::BinaryOp {
+                left,
+                op: BinaryOperator::Subtract,
+                right,
+            } => {
+                // Convert a - b to a + (-b) for easier term collection
+                let neg_right = Expression::UnaryOp {
+                    op: UnaryOperator::Minus,
+                    operand: Box::new(right.as_ref().clone()),
+                };
+                let as_addition = Expression::BinaryOp {
+                    left: left.clone(),
+                    op: BinaryOperator::Add,
+                    right: Box::new(neg_right),
+                };
+                as_addition.collect_terms()
+            }
+            // For other operations, recursively collect terms in sub-expressions
+            Expression::BinaryOp { left, op, right } => {
+                let left_collected = left.collect_terms()?;
+                let right_collected = right.collect_terms()?;
+
+                if left_collected == **left && right_collected == **right {
+                    Ok(self.clone()) // No change
+                } else {
+                    Ok(Expression::BinaryOp {
+                        left: Box::new(left_collected),
+                        op: op.clone(),
+                        right: Box::new(right_collected),
+                    })
+                }
+            }
+            Expression::UnaryOp { op, operand } => {
+                let operand_collected = operand.collect_terms()?;
+                if operand_collected == **operand {
+                    Ok(self.clone()) // No change
+                } else {
+                    Ok(Expression::UnaryOp {
+                        op: op.clone(),
+                        operand: Box::new(operand_collected),
+                    })
+                }
+            }
+            _ => Ok(self.clone()), // Atomic expressions don't need collection
+        }
+    }
+
+    fn collect_addition_terms(
+        &self,
+        terms: &mut HashMap<String, f64>,
+    ) -> Result<(), EvaluationError> {
+        match self {
+            // Handle addition: a + b
+            Expression::BinaryOp {
+                left,
+                op: BinaryOperator::Add,
+                right,
+            } => {
+                left.collect_addition_terms(terms)?;
+                right.collect_addition_terms(terms)?;
+            }
+
+            // Handle subtraction as negative addition: a - b -> a + (-1)*b
+            Expression::BinaryOp {
+                left,
+                op: BinaryOperator::Subtract,
+                right,
+            } => {
+                left.collect_addition_terms(terms)?;
+                right.collect_addition_terms_with_coefficient(terms, -1.0)?;
+            }
+
+            // Handle unary minus: -x -> (-1)*x
+            Expression::UnaryOp {
+                op: UnaryOperator::Minus,
+                operand,
+            } => {
+                operand.collect_addition_terms_with_coefficient(terms, -1.0)?;
+            }
+
+            // Handle unary plus: +x -> x
+            Expression::UnaryOp {
+                op: UnaryOperator::Plus,
+                operand,
+            } => {
+                operand.collect_addition_terms(terms)?;
+            }
+
+            // Single term with coefficient 1
+            _ => {
+                self.collect_addition_terms_with_coefficient(terms, 1.0)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Collect terms with a specific coefficient multiplier
+    fn collect_addition_terms_with_coefficient(
+        &self,
+        terms: &mut HashMap<String, f64>,
+        coeff: f64,
+    ) -> Result<(), EvaluationError> {
+        match self {
+            // Constants
+            Expression::Real(n) => {
+                *terms.entry("__constant__".to_string()).or_insert(0.0) += coeff * n;
+            }
+
+            // Variables: x -> 1*x
+            Expression::Variable(name) => {
+                *terms.entry(name.clone()).or_insert(0.0) += coeff;
+            }
+
+            // Multiplication: handle cases like 3*x, x*3, 2*x*y, etc.
+            Expression::BinaryOp {
+                op: BinaryOperator::Multiply,
+                ..
+            } => {
+                // Extract coefficient and variables from multiplication chain
+                let (extracted_coeff, variables) = self.extract_multiplication_parts();
+                let total_coeff = coeff * extracted_coeff;
+
+                if variables.is_empty() {
+                    // Pure constant multiplication
+                    *terms.entry("__constant__".to_string()).or_insert(0.0) += total_coeff;
+                } else {
+                    // Create a key from the variables
+                    let key = if variables.len() == 1 {
+                        variables[0].clone()
+                    } else {
+                        // Multiple variables: create a canonical form like "X * Y"
+                        let mut sorted_vars = variables;
+                        sorted_vars.sort();
+                        sorted_vars.join(" * ")
+                    };
+                    *terms.entry(key).or_insert(0.0) += total_coeff;
+                }
+            }
+
+            // Complex expressions: treat as single terms
+            _ => {
+                let key = format!("{}", self);
+                *terms.entry(key).or_insert(0.0) += coeff;
+            }
+        }
+        Ok(())
+    }
+
+    /// Extract coefficient and variables from a multiplication expression
+    /// Returns (coefficient, vec_of_variable_names)
+    fn extract_multiplication_parts(&self) -> (f64, Vec<String>) {
+        let mut coefficient = 1.0;
+        let mut variables = Vec::new();
+
+        self.collect_multiplication_parts(&mut coefficient, &mut variables);
+
+        (coefficient, variables)
+    }
+
+    /// Recursively collect parts of a multiplication expression
+    fn collect_multiplication_parts(&self, coefficient: &mut f64, variables: &mut Vec<String>) {
+        match self {
+            Expression::Real(n) => {
+                *coefficient *= n;
+            }
+            Expression::Variable(name) => {
+                variables.push(name.clone());
+            }
+            Expression::BinaryOp {
+                left,
+                op: BinaryOperator::Multiply,
+                right,
+            } => {
+                left.collect_multiplication_parts(coefficient, variables);
+                right.collect_multiplication_parts(coefficient, variables);
+            }
+            Expression::Complex(c) if c.is_real() => {
+                *coefficient *= c.real;
+            }
+            _ => {
+                // For other expressions, treat as a single variable-like term
+                variables.push(format!("{}", self));
+            }
+        }
+    }
+
+    /// Rebuild expression from collected terms
+    fn rebuild_from_terms(
+        &self,
+        terms: HashMap<String, f64>,
+    ) -> Result<Expression, EvaluationError> {
+        let mut result_terms = Vec::new();
+
+        for (term_str, coeff) in terms {
+            // Skip zero coefficients
+            if coeff == 0.0 {
+                continue;
+            }
+
+            let term_expr = if term_str == "__constant__" {
+                // Constant term
+                Expression::Real(coeff)
+            } else if (coeff - 1.0).abs() < f64::EPSILON {
+                // Coefficient is 1, just use the term
+                if term_str.starts_with('(') && term_str.ends_with(')') {
+                    // This was a complex expression - would need proper parsing
+                    // For now, create a placeholder variable
+                    Expression::Variable(term_str)
+                } else {
+                    Expression::Variable(term_str)
+                }
+            } else if (coeff + 1.0).abs() < f64::EPSILON {
+                // Coefficient is -1
+                let var_expr = Expression::Variable(term_str);
+                Expression::UnaryOp {
+                    op: UnaryOperator::Minus,
+                    operand: Box::new(var_expr),
+                }
+            } else {
+                // General case: coefficient * term
+                let var_expr = Expression::Variable(term_str);
+                Expression::BinaryOp {
+                    left: Box::new(Expression::Real(coeff)),
+                    op: BinaryOperator::Multiply,
+                    right: Box::new(var_expr),
+                }
+            };
+
+            result_terms.push(term_expr);
+        }
+
+        // Handle empty result
+        if result_terms.is_empty() {
+            return Ok(Expression::Real(0.0));
+        }
+
+        // Build the addition chain using your existing operations
+        let mut result = result_terms.clone().into_iter().next().unwrap();
+        for term in result_terms.into_iter().skip(1) {
+            // Use your existing Add implementation
+            result = (result + term)?;
+        }
+
+        Ok(result)
     }
 }
 

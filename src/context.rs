@@ -38,7 +38,8 @@ impl Context {
     }
 
     pub fn evaluate_expression(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
-        self.evaluate_expression_with_scope(expr, &HashMap::new())
+        self.evaluate_expression_with_scope(expr, &HashMap::new())?
+            .reduce()
     }
 
     fn evaluate_expression_with_scope(
@@ -58,8 +59,12 @@ impl Context {
             }
 
             Expression::BinaryOp { left, op, right } => {
-                let left_eval = self.evaluate_expression_with_scope(left, param_scope)?;
-                let right_eval = self.evaluate_expression_with_scope(right, param_scope)?;
+                let left_eval = self
+                    .evaluate_expression_with_scope(left, param_scope)?
+                    .reduce()?;
+                let right_eval = self
+                    .evaluate_expression_with_scope(right, param_scope)?
+                    .reduce()?;
 
                 match op {
                     BinaryOperator::Add => left_eval + right_eval,
