@@ -303,7 +303,7 @@ impl LineParser {
         match &tokens[*pos] {
             Token::Number(n) => {
                 *pos += 1;
-                Ok(Expression::Complex(Complex::new(*n, 0.0)))
+                Ok(Expression::Real(*n))
             }
             Token::Imaginary => {
                 *pos += 1;
