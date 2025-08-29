@@ -21,7 +21,8 @@ impl LineParser {
     }
 
     pub fn parse(&self, line: &str) -> Result<ParsedLine, ParseError> {
-        let mut tokenizer = Tokenizer::new(line);
+        let line = line.to_lowercase();
+        let mut tokenizer = Tokenizer::new(&line);
         let tokens = tokenizer.tokenize()?;
 
         if tokens.is_empty() || tokens.len() == 1 {

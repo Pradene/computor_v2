@@ -25,8 +25,6 @@ fn main() -> RustylineResult<()> {
                     continue;
                 }
 
-                let line = line.to_lowercase();
-
                 match parser.parse(&line) {
                     Ok(ParsedLine::Assignment { name, value }) => {
                         match context.assign(name, value) {
