@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::types::matrix::Matrix;
 use crate::context::{Context, ContextValue};
 use crate::error::EvaluationError;
 use crate::expression::{BinaryOperator, Expression, UnaryOperator};
+use crate::types::matrix::Matrix;
 
 #[derive(Debug, Clone)]
 pub struct ExpressionEvaluator<'a> {
@@ -25,22 +25,22 @@ impl<'a> ExpressionEvaluator<'a> {
 
     fn evaluate_internal(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         match expr {
-            Expression::Real(_) | Expression::Complex(_) => {
-                Ok(expr.clone())
-            }
+            Expression::Real(_) | Expression::Complex(_) => Ok(expr.clone()),
 
             Expression::Matrix(matrix) => {
                 let mut evaluated_matrix = Vec::new();
                 for row in 0..matrix.rows() {
                     for col in 0..matrix.cols() {
-                        let evaluated_element = self.evaluate_internal(matrix.get(row, col).unwrap())?.reduce()?;
+                        let evaluated_element = self
+                            .evaluate_internal(matrix.get(row, col).unwrap())?
+                            .reduce()?;
                         evaluated_matrix.push(evaluated_element);
                     }
                 }
                 let result = Matrix::new(evaluated_matrix, matrix.rows(), matrix.cols());
                 match result {
                     Ok(matrix) => Ok(Expression::Matrix(matrix)),
-                    Err(e) => Err(EvaluationError::InvalidOperation(e))
+                    Err(e) => Err(EvaluationError::InvalidOperation(e)),
                 }
             }
 

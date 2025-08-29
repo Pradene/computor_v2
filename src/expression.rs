@@ -174,6 +174,10 @@ impl Expression {
     pub fn is_variable(&self) -> bool {
         matches!(self, Expression::Variable(_))
     }
+
+    pub fn is_function(&self) -> bool {
+        matches!(self, Expression::FunctionCall { .. })
+    }
 }
 
 impl Expression {
@@ -401,20 +405,13 @@ impl Expression {
     pub fn pow(self, rhs: Self) -> Result<Expression, EvaluationError> {
         match (&self, &rhs) {
             (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a.powf(*b))),
-            (Expression::Complex(a), Expression::Complex(b)) => Ok(Expression::Complex(a.pow(*b))),
             (Expression::Real(a), Expression::Complex(b)) => {
                 Ok(Expression::Complex(Complex::new(*a, 0.0).pow(*b)))
             }
             (Expression::Complex(a), Expression::Real(b)) => {
                 Ok(Expression::Complex(a.pow(Complex::new(*b, 0.0))))
             }
-            // Algebraic simplifications
-            (_, Expression::Real(0.0)) => Ok(Expression::Real(1.0)),
-            (expr, Expression::Real(1.0)) => Ok(expr.clone()),
-            (Expression::Real(1.0), _) => Ok(Expression::Real(1.0)),
-            (Expression::Real(0.0), _) => Err(EvaluationError::InvalidOperation(
-                "Zero to non-positive power is undefined".to_string(),
-            )),
+            (Expression::Complex(a), Expression::Complex(b)) => Ok(Expression::Complex(a.pow(*b))),
             (Expression::Matrix(_), _) | (_, Expression::Matrix(_)) => {
                 Err(EvaluationError::UnsupportedOperation(
                     "Matrix exponentiation is not supported".to_string(),
@@ -487,24 +484,11 @@ impl Expression {
             | (Expression::Real(_) | Expression::Complex(_), Expression::Matrix(_)) => Err(
                 EvaluationError::InvalidOperation(format!("Cannot subtract scalar and matrix")),
             ),
-            _ => {
-                // Algebraic simplifications
-                if rhs.is_zero() {
-                    return Ok(self);
-                }
-                if self.is_zero() {
-                    return rhs.neg();
-                }
-                if self == rhs {
-                    return Ok(Expression::Real(0.0));
-                }
-
-                Ok(Expression::BinaryOp {
-                    left: Box::new(self),
-                    op: BinaryOperator::Subtract,
-                    right: Box::new(rhs),
-                })
-            }
+            _ => Ok(Expression::BinaryOp {
+                left: Box::new(self),
+                op: BinaryOperator::Subtract,
+                right: Box::new(rhs),
+            }),
         }
     }
 
@@ -614,6 +598,11 @@ impl Expression {
             (Expression::Real(_) | Expression::Complex(_), Expression::Matrix(_)) => Err(
                 EvaluationError::InvalidOperation("Cannot divide scalar by matrix".to_string()),
             ),
+            (Expression::Matrix(_), Expression::Matrix(_)) => {
+                Err(EvaluationError::UnsupportedOperation(
+                    "Matrix division is not implemented".to_string(),
+                ))
+            }
             _ => {
                 // Algebraic simplifications
                 if rhs.is_one() {
@@ -680,9 +669,9 @@ impl Expression {
                     operand: Box::new(Expression::BinaryOp { left, op, right }),
                 }),
             },
-            expr => Ok(Expression::UnaryOp {
+            _ => Ok(Expression::UnaryOp {
                 op: UnaryOperator::Minus,
-                operand: Box::new(expr),
+                operand: Box::new(self),
             }),
         }
     }
