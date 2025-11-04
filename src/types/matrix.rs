@@ -1,6 +1,7 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+use crate::error::EvaluationError;
 use crate::expression::Expression;
 use crate::types::complex::Complex;
 
@@ -24,6 +25,23 @@ impl Matrix {
         Ok(Matrix { data, rows, cols })
     }
 
+    fn identity(dimension: usize) -> Result<Self, EvaluationError> {
+        let mut data = Vec::with_capacity(dimension * dimension);
+        
+        for i in 0..dimension {
+            for j in 0..dimension {
+                if i == j {
+                    data.push(Expression::Real(1.0));
+                } else {
+                    data.push(Expression::Real(0.0));
+                }
+            }
+        }
+
+        Matrix::new(data, dimension, dimension)
+            .map_err(|e| EvaluationError::InvalidOperation(e))
+    }
+
     pub fn rows(&self) -> usize {
         self.rows
     }
@@ -38,6 +56,37 @@ impl Matrix {
 
     pub fn iter(&self) -> impl Iterator<Item = &Expression> {
         self.data.iter()
+    }
+
+    pub fn pow(&self, n: i32) -> Result<Self, EvaluationError> {
+        // Check if matrix is square
+        if self.rows != self.cols {
+            return Err(EvaluationError::InvalidOperation("Matrix must be square for exponentiation".to_string()));
+        }
+
+        // Handle negative powers
+        if n < 0 {
+            return Err(EvaluationError::InvalidOperation("Negative powers not supported".to_string()));
+        }
+
+        // Handle power of 0 - return identity matrix
+        if n == 0 {
+            return Self::identity(self.rows);
+        }
+
+        // Handle power of 1
+        if n == 1 {
+            return Ok(self.clone());
+        }
+
+        // For powers > 1, use repeated multiplication
+        let mut result = self.clone();
+        for _ in 1..n {
+            result = result.mul(self.clone())
+                .map_err(|e| EvaluationError::InvalidOperation(e))?;
+        }
+
+        Ok(result)
     }
 }
 

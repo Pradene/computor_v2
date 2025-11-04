@@ -412,6 +412,7 @@ impl Expression {
                 Ok(Expression::Complex(a.pow(Complex::new(*b, 0.0))))
             }
             (Expression::Complex(a), Expression::Complex(b)) => Ok(Expression::Complex(a.pow(*b))),
+            (Expression::Matrix(a), Expression::Real(b)) => Ok(Expression::Matrix(a.pow(*b as i32)?)),
             (Expression::Matrix(_), _) | (_, Expression::Matrix(_)) => {
                 Err(EvaluationError::UnsupportedOperation(
                     "Matrix exponentiation is not supported".to_string(),
@@ -673,6 +674,36 @@ impl Expression {
                 op: UnaryOperator::Minus,
                 operand: Box::new(self),
             }),
+        }
+    }
+
+    pub fn sqrt(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Real(n) => Ok(Expression::Real(n.sqrt())),
+            Expression::Complex(n) => Ok(Expression::Complex(n.sqrt())),
+            _ => Err(EvaluationError::InvalidOperation(
+                "Sqrt is not implemented for this type".to_string(),
+            )),
+        }
+    }
+
+    pub fn abs(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Real(n) => Ok(Expression::Real(n.abs())),
+            Expression::Complex(n) => Ok(Expression::Real(n.abs())),
+            _ => Err(EvaluationError::InvalidOperation(
+                "Abs is not implemented for this type".to_string(),
+            )),
+        }
+    }
+
+    pub fn exp(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Real(n) => Ok(Expression::Real(n.exp())),
+            Expression::Complex(n) => Ok(Expression::Complex(n.exp())),
+            _ => Err(EvaluationError::InvalidOperation(
+                "Exp is not implemented for this type".to_string(),
+            )),
         }
     }
 }

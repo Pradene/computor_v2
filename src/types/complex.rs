@@ -163,6 +163,10 @@ impl Complex {
     pub fn is_nan(&self) -> bool {
         self.real.is_nan() || self.imag.is_nan()
     }
+
+    pub fn abs(&self) -> f64 {
+        (self.real.powf(2.0) + self.imag.powf(2.0)).sqrt()
+    }
 }
 
 impl fmt::Display for Complex {
