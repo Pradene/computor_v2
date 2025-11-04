@@ -1,5 +1,5 @@
 use computor_v2::context::Context;
-use computor_v2::parsing::parser::{LineParser, ParsedLine};
+use computor_v2::parser::{LineParser, ParsedLine};
 
 use rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult};
 
@@ -29,19 +29,19 @@ fn main() -> RustylineResult<()> {
                     Ok(ParsedLine::Assignment { name, value }) => {
                         match context.assign(name, value) {
                             Ok(result) => println!("{}", result),
-                            Err(e) => println!("Assignment error: {}", e),
+                            Err(e) => eprintln!("Assignment error: {}", e),
                         }
                     }
                     Ok(ParsedLine::Query { expression }) => {
                         match context.evaluate_expression(&expression) {
                             Ok(result) => println!("{}", result),
-                            Err(e) => println!("Evaluation error: {}", e),
+                            Err(e) => eprintln!("Evaluation error: {}", e),
                         }
                     }
                     Ok(ParsedLine::Equation { left, right }) => {
                         match context.evaluate_equation(&left, &right) {
                             Ok(result) => println!("{} = {}", result.0, result.1),
-                            Err(e) => println!("Evaluation error: {}", e),
+                            Err(e) => eprintln!("Evaluation error: {}", e),
                         }
                     }
                     Err(e) => println!("Parse error: {}", e),
@@ -50,15 +50,15 @@ fn main() -> RustylineResult<()> {
                 reader.add_history_entry(line.as_str())?;
             }
             Err(ReadlineError::Interrupted) => {
-                println!("Ctrl-C");
+                eprintln!("Ctrl-C");
                 break;
             }
             Err(ReadlineError::Eof) => {
-                println!("Ctrl-D");
+                eprintln!("Ctrl-D");
                 break;
             }
             Err(err) => {
-                println!("Error: {:?}", err);
+                eprintln!("Error: {:?}", err);
                 break;
             }
         }

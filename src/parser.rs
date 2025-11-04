@@ -1,11 +1,11 @@
 use crate::types::complex::Complex;
 use crate::types::matrix::Matrix;
 
-use crate::parsing::tokenizer::{Token, Tokenizer};
+use crate::tokenizer::{Token, Tokenizer};
 
 use crate::context::ContextValue;
 use crate::error::ParseError;
-use crate::expression::{BinaryOperator, Expression, UnaryOperator};
+use crate::types::expression::{BinaryOperator, Expression, UnaryOperator};
 
 #[derive(Debug, Clone)]
 pub enum ParsedLine {

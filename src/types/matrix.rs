@@ -2,8 +2,8 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::error::EvaluationError;
-use crate::expression::Expression;
 use crate::types::complex::Complex;
+use crate::types::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {

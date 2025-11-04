@@ -2,8 +2,10 @@ use std::collections::HashMap;
 
 use crate::context::{Context, ContextValue};
 use crate::error::EvaluationError;
-use crate::expression::{BinaryOperator, Expression, UnaryOperator};
-use crate::types::matrix::Matrix;
+use crate::types::{
+    expression::{BinaryOperator, Expression, UnaryOperator},
+    matrix::Matrix,
+};
 
 #[derive(Debug, Clone)]
 pub struct ExpressionEvaluator<'a> {

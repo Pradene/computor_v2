@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::error::EvaluationError;
 use crate::evaluator::ExpressionEvaluator;
-use crate::expression::Expression;
+use crate::types::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContextValue {
