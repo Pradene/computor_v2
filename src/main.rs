@@ -38,6 +38,9 @@ fn main() -> RustylineResult<()> {
                             Err(e) => println!("Evaluation error: {}", e),
                         }
                     }
+                    Ok(ParsedLine::Equation { left, right }) => {
+                        println!("TODO: evaluate expression -> {} = {}", left, right);
+                    }
                     Err(e) => println!("Parse error: {}", e),
                 }
 

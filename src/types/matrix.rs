@@ -27,7 +27,7 @@ impl Matrix {
 
     fn identity(dimension: usize) -> Result<Self, EvaluationError> {
         let mut data = Vec::with_capacity(dimension * dimension);
-        
+
         for i in 0..dimension {
             for j in 0..dimension {
                 if i == j {
@@ -38,8 +38,7 @@ impl Matrix {
             }
         }
 
-        Matrix::new(data, dimension, dimension)
-            .map_err(|e| EvaluationError::InvalidOperation(e))
+        Matrix::new(data, dimension, dimension).map_err(|e| EvaluationError::InvalidOperation(e))
     }
 
     pub fn rows(&self) -> usize {
@@ -61,12 +60,16 @@ impl Matrix {
     pub fn pow(&self, n: i32) -> Result<Self, EvaluationError> {
         // Check if matrix is square
         if self.rows != self.cols {
-            return Err(EvaluationError::InvalidOperation("Matrix must be square for exponentiation".to_string()));
+            return Err(EvaluationError::InvalidOperation(
+                "Matrix must be square for exponentiation".to_string(),
+            ));
         }
 
         // Handle negative powers
         if n < 0 {
-            return Err(EvaluationError::InvalidOperation("Negative powers not supported".to_string()));
+            return Err(EvaluationError::InvalidOperation(
+                "Negative powers not supported".to_string(),
+            ));
         }
 
         // Handle power of 0 - return identity matrix
@@ -82,7 +85,8 @@ impl Matrix {
         // For powers > 1, use repeated multiplication
         let mut result = self.clone();
         for _ in 1..n {
-            result = result.mul(self.clone())
+            result = result
+                .mul(self.clone())
                 .map_err(|e| EvaluationError::InvalidOperation(e))?;
         }
 

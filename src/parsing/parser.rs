@@ -10,6 +10,7 @@ use crate::expression::{BinaryOperator, Expression, UnaryOperator};
 #[derive(Debug, Clone)]
 pub enum ParsedLine {
     Assignment { name: String, value: ContextValue },
+    Equation { left: Expression, right: Expression },
     Query { expression: Expression },
 }
 
@@ -30,28 +31,32 @@ impl LineParser {
         }
 
         if let Some(eq_pos) = self.find_equals_position(&tokens) {
-            // Check for query pattern (expression = ?)
-            if self.is_query_pattern(&tokens, eq_pos) {
-                let expr_tokens = &tokens[..eq_pos];
-                let expression = self.parse_expression_from_tokens(expr_tokens)?;
-                return Ok(ParsedLine::Query { expression });
+            // Check for query pattern (expression = ?) or (expression = expression?)
+            if tokens.iter().nth(tokens.len() - 1 - 1) == Some(&Token::Question) {
+                if eq_pos == tokens.len() - 1 - 2 {
+                    let expr_tokens = &tokens[..eq_pos];
+                    let expression = self.parse_expression_from_tokens(expr_tokens)?;
+                    return Ok(ParsedLine::Query { expression });
+                } else {
+                    let lt = &tokens[..eq_pos];
+                    let rt = &tokens[eq_pos + 1..];
+                    let left = self.parse_expression_from_tokens(lt)?;
+                    let right = self.parse_expression_from_tokens(rt)?;
+                    return Ok(ParsedLine::Equation { left, right });
+                }
+            } else {
+                // Handle assignment pattern
+                return self.parse_assignment(&tokens, eq_pos);
             }
-
-            // Handle assignment pattern
-            return self.parse_assignment(&tokens, eq_pos);
+        } else {
+            Err(ParseError::InvalidSyntax(
+                "Expected assignment or query".to_string(),
+            ))
         }
-
-        Err(ParseError::InvalidSyntax(
-            "Expected assignment or query".to_string(),
-        ))
     }
 
     fn find_equals_position(&self, tokens: &[Token]) -> Option<usize> {
         tokens.iter().position(|t| *t == Token::Equal)
-    }
-
-    fn is_query_pattern(&self, tokens: &[Token], eq_pos: usize) -> bool {
-        eq_pos + 2 < tokens.len() && tokens[eq_pos + 1] == Token::Question
     }
 
     fn parse_assignment(&self, tokens: &[Token], eq_pos: usize) -> Result<ParsedLine, ParseError> {

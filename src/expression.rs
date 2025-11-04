@@ -412,7 +412,9 @@ impl Expression {
                 Ok(Expression::Complex(a.pow(Complex::new(*b, 0.0))))
             }
             (Expression::Complex(a), Expression::Complex(b)) => Ok(Expression::Complex(a.pow(*b))),
-            (Expression::Matrix(a), Expression::Real(b)) => Ok(Expression::Matrix(a.pow(*b as i32)?)),
+            (Expression::Matrix(a), Expression::Real(b)) => {
+                Ok(Expression::Matrix(a.pow(*b as i32)?))
+            }
             (Expression::Matrix(_), _) | (_, Expression::Matrix(_)) => {
                 Err(EvaluationError::UnsupportedOperation(
                     "Matrix exponentiation is not supported".to_string(),
