@@ -239,13 +239,25 @@ impl Expression {
             }
             Expression::UnaryOp { op, operand } => {
                 let operand_collected = operand.collect_terms()?;
-                if operand_collected == **operand {
-                    Ok(self.clone())
-                } else {
-                    Ok(Expression::UnaryOp {
-                        op: op.clone(),
-                        operand: Box::new(operand_collected),
-                    })
+
+                match op {
+                    UnaryOperator::Plus => Ok(operand_collected),
+                    UnaryOperator::Minus => {
+                        if let Expression::UnaryOp {
+                            op: UnaryOperator::Minus,
+                            operand: inner,
+                        } = &operand_collected
+                        {
+                            Ok(*inner.clone())
+                        } else if operand_collected == **operand {
+                            Ok(self.clone())
+                        } else {
+                            Ok(Expression::UnaryOp {
+                                op: op.clone(),
+                                operand: Box::new(operand_collected),
+                            })
+                        }
+                    }
                 }
             }
             _ => Ok(self.clone()),
@@ -288,6 +300,9 @@ impl Expression {
             }
             Expression::Real(n) => {
                 *terms.entry("__constant__".to_string()).or_insert(0.0) += coeff * n;
+            }
+            Expression::Complex(c) if c.is_real() => {
+                *terms.entry("__constant__".to_string()).or_insert(0.0) += coeff * c.real;
             }
             Expression::Variable(name) => {
                 *terms.entry(name.clone()).or_insert(0.0) += coeff;
@@ -350,38 +365,40 @@ impl Expression {
         let mut result_terms = Vec::new();
 
         for (term_str, coeff) in terms {
-            if coeff == 0.0 {
+            if coeff.abs() < f64::EPSILON {
                 continue;
             }
 
-            let term_expr = match coeff {
-                c if (c - 1.0).abs() < f64::EPSILON => {
-                    if term_str == "__constant__" {
-                        Expression::Real(1.0)
-                    } else {
-                        Expression::Variable(term_str)
+            let term_expr = if term_str == "__constant__" {
+                if coeff < 0.0 {
+                    Expression::UnaryOp {
+                        op: UnaryOperator::Minus,
+                        operand: Box::new(Expression::Real(-coeff)),
                     }
+                } else {
+                    Expression::Real(coeff)
                 }
-                c if (c + 1.0).abs() < f64::EPSILON => {
-                    if term_str == "__constant__" {
-                        Expression::Real(-1.0)
-                    } else {
-                        Expression::UnaryOp {
-                            op: UnaryOperator::Minus,
-                            operand: Box::new(Expression::Variable(term_str)),
-                        }
-                    }
+            } else if (coeff - 1.0).abs() < f64::EPSILON {
+                Expression::Variable(term_str)
+            } else if (coeff + 1.0).abs() < f64::EPSILON {
+                Expression::UnaryOp {
+                    op: UnaryOperator::Minus,
+                    operand: Box::new(Expression::Variable(term_str)),
                 }
-                _ => {
-                    if term_str == "__constant__" {
-                        Expression::Real(coeff)
-                    } else {
-                        Expression::BinaryOp {
-                            left: Box::new(Expression::Real(coeff)),
-                            op: BinaryOperator::Multiply,
-                            right: Box::new(Expression::Variable(term_str)),
-                        }
-                    }
+            } else if coeff < 0.0 {
+                Expression::UnaryOp {
+                    op: UnaryOperator::Minus,
+                    operand: Box::new(Expression::BinaryOp {
+                        left: Box::new(Expression::Real(-coeff)),
+                        op: BinaryOperator::Multiply,
+                        right: Box::new(Expression::Variable(term_str)),
+                    }),
+                }
+            } else {
+                Expression::BinaryOp {
+                    left: Box::new(Expression::Real(coeff)),
+                    op: BinaryOperator::Multiply,
+                    right: Box::new(Expression::Variable(term_str)),
                 }
             };
 
@@ -392,9 +409,27 @@ impl Expression {
             return Ok(Expression::Real(0.0));
         }
 
-        let mut result = result_terms.clone().into_iter().next().unwrap();
-        for term in result_terms.into_iter().skip(1) {
-            result = result.add(term)?;
+        let mut result = result_terms[0].clone();
+        for term in result_terms.iter().skip(1) {
+            match term {
+                Expression::UnaryOp {
+                    op: UnaryOperator::Minus,
+                    operand,
+                } => {
+                    result = Expression::BinaryOp {
+                        left: Box::new(result),
+                        op: BinaryOperator::Subtract,
+                        right: operand.clone(),
+                    };
+                }
+                _ => {
+                    result = Expression::BinaryOp {
+                        left: Box::new(result),
+                        op: BinaryOperator::Add,
+                        right: Box::new(term.clone()),
+                    };
+                }
+            }
         }
 
         Ok(result)
@@ -655,6 +690,11 @@ impl Expression {
                 op: UnaryOperator::Minus,
                 operand,
             } => Ok(*operand),
+            // Double negative: - +x = -x
+            Expression::UnaryOp {
+                op: UnaryOperator::Plus,
+                operand,
+            } => (*operand).neg(),
             // Distribute minus over binary operations
             Expression::BinaryOp { left, op, right } => match op {
                 BinaryOperator::Add => {
