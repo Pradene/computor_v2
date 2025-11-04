@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::error::EvaluationError;
 use crate::evaluator::ExpressionEvaluator;
+use crate::solver::EquationSolver;
 use crate::types::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,13 +40,14 @@ impl Context {
         &self,
         left: &Expression,
         right: &Expression,
-    ) -> Result<(Expression, Expression), EvaluationError> {
-        let left = (left.clone()).sub(right.clone())?;
-        let evaluated_left = self.evaluate_expression(&left)?;
-        Ok((evaluated_left, Expression::Real(0.0)))
-        // TODO: Solve equations properly
-        // Get all unknown variables involved and solve for them
-        // For now, just return the evaluated left side and 0 on the right
+    ) -> Result<String, EvaluationError> {
+        // Move everything to the left side: left - right = 0
+        let equation = (left.clone()).sub(right.clone())?;
+        let simplified = self.evaluate_expression(&equation)?;
+
+        let solution = EquationSolver::solve(&simplified)?;
+
+        Ok(format!("{}", solution))
     }
 
     pub fn get_variable(&self, name: &str) -> Option<&ContextValue> {

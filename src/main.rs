@@ -40,7 +40,7 @@ fn main() -> RustylineResult<()> {
                     }
                     Ok(ParsedLine::Equation { left, right }) => {
                         match context.evaluate_equation(&left, &right) {
-                            Ok(result) => println!("{} = {}", result.0, result.1),
+                            Ok(result) => println!("{}", result),
                             Err(e) => eprintln!("Evaluation error: {}", e),
                         }
                     }
