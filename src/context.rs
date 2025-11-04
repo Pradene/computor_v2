@@ -35,6 +35,19 @@ impl Context {
         ExpressionEvaluator::new(self).evaluate(expr)
     }
 
+    pub fn evaluate_equation(
+        &self,
+        left: &Expression,
+        right: &Expression,
+    ) -> Result<(Expression, Expression), EvaluationError> {
+        let left = (left.clone()).sub(right.clone())?;
+        let evaluated_left = self.evaluate_expression(&left)?;
+        Ok((evaluated_left, Expression::Real(0.0)))
+        // TODO: Solve equations properly
+        // Get all unknown variables involved and solve for them
+        // For now, just return the evaluated left side and 0 on the right
+    }
+
     pub fn get_variable(&self, name: &str) -> Option<&ContextValue> {
         self.variables.get(name)
     }
