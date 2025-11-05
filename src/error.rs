@@ -7,6 +7,7 @@ pub enum ParseError {
     UnexpectedEof,
     InvalidNumber(String),
     InvalidMatrix(String),
+    InvalidVector(String),
 }
 
 #[derive(Debug)]
@@ -27,6 +28,7 @@ impl fmt::Display for ParseError {
             ParseError::UnexpectedEof => write!(f, "Unexpected end of input"),
             ParseError::InvalidNumber(num) => write!(f, "Invalid number: {}", num),
             ParseError::InvalidMatrix(msg) => write!(f, "Invalid matrix: {}", msg),
+            ParseError::InvalidVector(msg) => write!(f, "Invalid vector: {}", msg),
         }
     }
 }

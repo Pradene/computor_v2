@@ -4,6 +4,7 @@ use std::fmt;
 use crate::error::EvaluationError;
 use crate::types::complex::Complex;
 use crate::types::matrix::Matrix;
+use crate::types::vector::Vector;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOperator {
@@ -50,6 +51,7 @@ pub enum Expression {
     Real(f64),
     Complex(Complex),
     Matrix(Matrix),
+    Vector(Vector),
     Variable(String),
     FunctionCall {
         name: String,
@@ -72,6 +74,7 @@ impl fmt::Display for Expression {
             Expression::Real(n) => write!(f, "{}", n),
             Expression::Complex(n) => write!(f, "{}", n),
             Expression::Matrix(matrix) => write!(f, "{}", matrix),
+            Expression::Vector(vector) => write!(f, "{}", vector),
             Expression::Variable(name) => write!(f, "{}", name),
             Expression::FunctionCall { name, args } => {
                 write!(f, "{}(", name)?;

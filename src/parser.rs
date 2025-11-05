@@ -6,6 +6,7 @@ use crate::tokenizer::{Token, Tokenizer};
 use crate::context::ContextValue;
 use crate::error::ParseError;
 use crate::types::expression::{BinaryOperator, Expression, UnaryOperator};
+use crate::types::vector::Vector;
 
 #[derive(Debug, Clone)]
 pub enum ParsedLine {
@@ -315,7 +316,7 @@ impl LineParser {
                 *pos += 1;
                 Ok(Expression::Complex(Complex::new(0.0, 1.0)))
             }
-            Token::LeftBracket => self.parse_matrix(tokens, pos),
+            Token::LeftBracket => self.parse_bracket(tokens, pos),
             Token::Identifier(name) => self.parse_identifier(tokens, pos, name.clone()),
             Token::LeftParen => self.parse_parenthesized_expression(tokens, pos),
             _ => Err(ParseError::UnexpectedToken(format!("{:?}", tokens[*pos]))),
@@ -384,6 +385,17 @@ impl LineParser {
         *pos += 1; // consume ')'
 
         Ok(expr)
+    }
+
+    fn parse_bracket(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+        if *pos + 1 >= tokens.len() {
+            return Err(ParseError::UnexpectedEof);
+        }
+
+        match tokens[*pos + 1] {
+            Token::LeftBracket => self.parse_matrix(tokens, pos),
+            _ => self.parse_vector(tokens, pos),
+        }
     }
 
     fn parse_matrix(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
@@ -463,6 +475,32 @@ impl LineParser {
         *pos += 1; // consume ']'
 
         Ok(row)
+    }
+
+    fn parse_vector(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+        *pos += 1; // consume '['
+
+        let mut elements = Vec::new();
+
+        while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
+            let expr = self.parse_addition(tokens, pos)?;
+            elements.push(expr);
+
+            if *pos < tokens.len() && tokens[*pos] == Token::Comma {
+                *pos += 1; // consume ','
+            }
+        }
+
+        if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
+            return Err(ParseError::InvalidSyntax(
+                "Missing ']' for vector".to_string(),
+            ));
+        }
+        *pos += 1; // consume ']'
+
+        Ok(Expression::Vector(
+            Vector::new(elements).map_err(|e| ParseError::InvalidVector(e))?,
+        ))
     }
 }
 

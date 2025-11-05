@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::context::{Context, ContextValue};
 use crate::error::EvaluationError;
+use crate::types::vector::Vector;
 use crate::types::{
     expression::{BinaryOperator, Expression, UnaryOperator},
     matrix::Matrix,
@@ -28,6 +29,19 @@ impl<'a> ExpressionEvaluator<'a> {
     fn evaluate_internal(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         match expr {
             Expression::Real(_) | Expression::Complex(_) => Ok(expr.clone()),
+
+            Expression::Vector(vector) => {
+                let mut evaluated_vector = Vec::new();
+                for element in vector.iter() {
+                    let evaluated_element = self.evaluate_internal(element)?.reduce()?;
+                    evaluated_vector.push(evaluated_element);
+                }
+                let result = Vector::new(evaluated_vector);
+                match result {
+                    Ok(vector) => Ok(Expression::Vector(vector)),
+                    Err(e) => Err(EvaluationError::InvalidOperation(e)),
+                }
+            }
 
             Expression::Matrix(matrix) => {
                 let mut evaluated_matrix = Vec::new();
