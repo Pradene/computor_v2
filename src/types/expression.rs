@@ -1,3 +1,4 @@
+use std::any;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
@@ -45,9 +46,10 @@ impl Add for Value {
             (Value::Matrix(a), Value::Matrix(b)) => Ok(Value::Matrix((a + b).map_err(|e| {
                 EvaluationError::InvalidOperation(format!("Matrix addition failed: {}", e))
             })?)),
-            _ => Err(EvaluationError::InvalidOperation(
-                "Addition not supported for these Value types".to_string(),
-            )),
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "{} + {}",
+                left, right
+            ))),
         }
     }
 }
@@ -67,9 +69,10 @@ impl Sub for Value {
             (Value::Matrix(a), Value::Matrix(b)) => Ok(Value::Matrix((a - b).map_err(|e| {
                 EvaluationError::InvalidOperation(format!("Matrix subtraction failed: {}", e))
             })?)),
-            _ => Err(EvaluationError::InvalidOperation(
-                "Subtraction not supported for these Value types".to_string(),
-            )),
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "{} - {}",
+                left, right
+            ))),
         }
     }
 }
@@ -132,9 +135,10 @@ impl Mul for Value {
                 ))
             })?)),
 
-            _ => Err(EvaluationError::InvalidOperation(
-                "Multiplication not supported for these Value types".to_string(),
-            )),
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "{} * {}",
+                left, right
+            ))),
         }
     }
 }
@@ -212,9 +216,10 @@ impl Div for Value {
                     ))
                 })?))
             }
-            _ => Err(EvaluationError::InvalidOperation(
-                "Division not supported for these Value types".to_string(),
-            )),
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "{} / {}",
+                left, right
+            ))),
         }
     }
 }
@@ -232,9 +237,10 @@ impl Rem for Value {
                 }
                 Ok(Value::Real(a % b))
             }
-            _ => Err(EvaluationError::InvalidOperation(
-                "Modulo operation only supported for Real values".to_string(),
-            )),
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "{} % {}",
+                left, right
+            ))),
         }
     }
 }
@@ -264,9 +270,10 @@ impl Value {
             (Value::Complex(a), Value::Complex(b)) => Ok(Value::Complex(a.pow(b))),
             (Value::Real(a), Value::Complex(b)) => Ok(Value::Complex(Complex::new(a, 0.0).pow(b))),
             (Value::Matrix(a), Value::Real(b)) => Ok(Value::Matrix(a.pow(b as i32)?)),
-            _ => Err(EvaluationError::UnsupportedOperation(
-                "Power operation not supported for these types".to_string(),
-            )),
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "{} ^ {}",
+                left, right
+            ))),
         }
     }
 
