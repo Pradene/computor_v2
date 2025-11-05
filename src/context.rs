@@ -50,21 +50,39 @@ impl Context {
     fn prepare_equation(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         match expr {
             Expression::FunctionCall { .. } => self.evaluate_expression(expr),
-            Expression::BinaryOp { left, op, right } => {
+            Expression::Add(left, right) => {
                 let left_prep = self.prepare_equation(left)?;
                 let right_prep = self.prepare_equation(right)?;
-                Ok(Expression::BinaryOp {
-                    left: Box::new(left_prep),
-                    op: op.clone(),
-                    right: Box::new(right_prep),
-                })
+                Ok(Expression::Add(Box::new(left_prep), Box::new(right_prep)))
             }
-            Expression::UnaryOp { op, operand } => {
-                let operand_prep = self.prepare_equation(operand)?;
-                Ok(Expression::UnaryOp {
-                    op: op.clone(),
-                    operand: Box::new(operand_prep),
-                })
+            Expression::Div(left, right) => {
+                let left_prep = self.prepare_equation(left)?;
+                let right_prep = self.prepare_equation(right)?;
+                Ok(Expression::Div(Box::new(left_prep), Box::new(right_prep)))
+            }
+            Expression::Mul(left, right) => {
+                let left_prep = self.prepare_equation(left)?;
+                let right_prep = self.prepare_equation(right)?;
+                Ok(Expression::Mul(Box::new(left_prep), Box::new(right_prep)))
+            }
+            Expression::Mod(left, right) => {
+                let left_prep = self.prepare_equation(left)?;
+                let right_prep = self.prepare_equation(right)?;
+                Ok(Expression::Mod(Box::new(left_prep), Box::new(right_prep)))
+            }
+            Expression::Pow(left, right) => {
+                let left_prep = self.prepare_equation(left)?;
+                let right_prep = self.prepare_equation(right)?;
+                Ok(Expression::Pow(Box::new(left_prep), Box::new(right_prep)))
+            }
+            Expression::Sub(left, right) => {
+                let left_prep = self.prepare_equation(left)?;
+                let right_prep = self.prepare_equation(right)?;
+                Ok(Expression::Sub(Box::new(left_prep), Box::new(right_prep)))
+            }
+            Expression::Neg(inner) => {
+                let inner = self.prepare_equation(inner)?;
+                Ok(Expression::Neg(Box::new(inner)))
             }
             _ => Ok(expr.clone()),
         }
@@ -74,12 +92,16 @@ impl Context {
     fn contains_variables(expr: &Expression) -> bool {
         match expr {
             Expression::Variable(_) => true,
-            Expression::BinaryOp { left, right, .. } => {
+            Expression::Add(left, right)
+            | Expression::Div(left, right)
+            | Expression::Mul(left, right)
+            | Expression::Mod(left, right)
+            | Expression::Pow(left, right)
+            | Expression::Sub(left, right) => {
                 Self::contains_variables(left) || Self::contains_variables(right)
             }
-            Expression::UnaryOp { operand, .. } => Self::contains_variables(operand),
+            Expression::Neg(inner) => Self::contains_variables(inner),
             Expression::FunctionCall { args, .. } => args.iter().any(Self::contains_variables),
-            Expression::Matrix(matrix) => matrix.iter().any(Self::contains_variables),
             _ => false,
         }
     }

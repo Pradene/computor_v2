@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::types::complex::Complex;
-use crate::types::expression::Expression;
+use crate::types::expression::{Expression, Value};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Vector {
@@ -74,7 +74,7 @@ impl Mul<f64> for Vector {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone().mul(Expression::Real(rhs)))
+            .map(|m| m.clone().mul(Expression::Value(Value::Real(rhs))))
             .collect();
 
         match result {
@@ -91,7 +91,7 @@ impl Mul<Complex> for Vector {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone().mul(Expression::Complex(rhs)))
+            .map(|m| m.clone().mul(Expression::Value(Value::Complex(rhs))))
             .collect();
 
         match result {
@@ -108,7 +108,7 @@ impl Div<f64> for Vector {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone().div(Expression::Real(rhs)))
+            .map(|m| m.clone().div(Expression::Value(Value::Real(rhs))))
             .collect();
 
         match result {
@@ -125,7 +125,7 @@ impl Div<Complex> for Vector {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone().div(Expression::Complex(rhs)))
+            .map(|m| m.clone().div(Expression::Value(Value::Complex(rhs))))
             .collect();
 
         match result {

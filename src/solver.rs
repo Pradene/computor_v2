@@ -1,6 +1,6 @@
 use crate::error::EvaluationError;
 use crate::types::complex::Complex;
-use crate::types::expression::{BinaryOperator, Expression, UnaryOperator};
+use crate::types::expression::{Expression, Value};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -86,8 +86,8 @@ impl EquationSolver {
     fn solve_constant(equation: &Expression) -> Result<EquationSolution, EvaluationError> {
         // Check if the constant expression is zero
         let is_zero = match equation {
-            Expression::Real(n) => n.abs() < f64::EPSILON,
-            Expression::Complex(c) => c.is_zero(),
+            Expression::Value(Value::Real(n)) => n.abs() < f64::EPSILON,
+            Expression::Value(Value::Complex(c)) => c.is_zero(),
             _ => false,
         };
 
@@ -132,7 +132,7 @@ impl EquationSolver {
         }
 
         let solution = -b / a;
-        Ok(vec![Expression::Real(solution)])
+        Ok(vec![Expression::Value(Value::Real(solution))])
     }
 
     fn solve_degree_2(
@@ -155,11 +155,14 @@ impl EquationSolver {
             let sqrt_discriminant = discriminant.sqrt();
             let x1 = (-b + sqrt_discriminant) / (2.0 * a);
             let x2 = (-b - sqrt_discriminant) / (2.0 * a);
-            Ok(vec![Expression::Real(x1), Expression::Real(x2)])
+            Ok(vec![
+                Expression::Value(Value::Real(x1)),
+                Expression::Value(Value::Real(x2)),
+            ])
         } else if discriminant.abs() < f64::EPSILON {
             // One real solution (double root)
             let x = -b / (2.0 * a);
-            Ok(vec![Expression::Real(x)])
+            Ok(vec![Expression::Value(Value::Real(x))])
         } else {
             // Two complex solutions
             let real_part = -b / (2.0 * a);
@@ -168,7 +171,10 @@ impl EquationSolver {
             let x1 = Complex::new(real_part, imag_part);
             let x2 = Complex::new(real_part, -imag_part);
 
-            Ok(vec![Expression::Complex(x1), Expression::Complex(x2)])
+            Ok(vec![
+                Expression::Value(Value::Complex(x1)),
+                Expression::Value(Value::Complex(x2)),
+            ])
         }
     }
 
@@ -187,12 +193,17 @@ impl EquationSolver {
                     variables.push(name.clone());
                 }
             }
-            Expression::BinaryOp { left, right, .. } => {
+            Expression::Add(left, right)
+            | Expression::Sub(left, right)
+            | Expression::Mul(left, right)
+            | Expression::Div(left, right)
+            | Expression::Mod(left, right)
+            | Expression::Pow(left, right) => {
                 Self::collect_variables(left, variables);
                 Self::collect_variables(right, variables);
             }
-            Expression::UnaryOp { operand, .. } => {
-                Self::collect_variables(operand, variables);
+            Expression::Neg(inner) => {
+                Self::collect_variables(inner, variables);
             }
             Expression::FunctionCall { args, .. } => {
                 // Collect variables from function arguments
@@ -200,13 +211,8 @@ impl EquationSolver {
                     Self::collect_variables(arg, variables);
                 }
             }
-            Expression::Matrix(matrix) => {
-                for elem in matrix.iter() {
-                    Self::collect_variables(elem, variables);
-                }
-            }
             // Don't collect anything from Real, Complex, or other literal types
-            _ => {}
+            Expression::Value(_) => {}
         }
     }
 
@@ -226,10 +232,10 @@ impl EquationSolver {
         sign: f64,
     ) -> Result<(), EvaluationError> {
         match expr {
-            Expression::Real(n) => {
+            Expression::Value(Value::Real(n)) => {
                 *coefficients.entry(0).or_insert(0.0) += sign * n;
             }
-            Expression::Complex(c) if c.is_real() => {
+            Expression::Value(Value::Complex(c)) if c.is_real() => {
                 *coefficients.entry(0).or_insert(0.0) += sign * c.real;
             }
             Expression::Variable(name) if name == variable => {
@@ -260,38 +266,25 @@ impl EquationSolver {
                     name
                 )));
             }
-            Expression::BinaryOp { left, op, right } => match op {
-                BinaryOperator::Add => {
-                    Self::collect_polynomial_terms(left, variable, coefficients, sign)?;
-                    Self::collect_polynomial_terms(right, variable, coefficients, sign)?;
-                }
-                BinaryOperator::Subtract => {
-                    Self::collect_polynomial_terms(left, variable, coefficients, sign)?;
-                    Self::collect_polynomial_terms(right, variable, coefficients, -sign)?;
-                }
-                BinaryOperator::Multiply => {
-                    let (coeff, degree) = Self::extract_term(expr, variable)?;
-                    *coefficients.entry(degree).or_insert(0.0) += sign * coeff;
-                }
-                BinaryOperator::Power => {
-                    let (coeff, degree) = Self::extract_term(expr, variable)?;
-                    *coefficients.entry(degree).or_insert(0.0) += sign * coeff;
-                }
-                _ => {
-                    return Err(EvaluationError::UnsupportedOperation(format!(
-                        "Unsupported operation in polynomial: {:?}",
-                        op
-                    )));
-                }
-            },
-            Expression::UnaryOp { op, operand } => match op {
-                UnaryOperator::Minus => {
-                    Self::collect_polynomial_terms(operand, variable, coefficients, -sign)?;
-                }
-                UnaryOperator::Plus => {
-                    Self::collect_polynomial_terms(operand, variable, coefficients, sign)?;
-                }
-            },
+            Expression::Add(left, right) => {
+                Self::collect_polynomial_terms(left, variable, coefficients, sign)?;
+                Self::collect_polynomial_terms(right, variable, coefficients, sign)?;
+            }
+            Expression::Sub(left, right) => {
+                Self::collect_polynomial_terms(left, variable, coefficients, sign)?;
+                Self::collect_polynomial_terms(right, variable, coefficients, -sign)?;
+            }
+            Expression::Mul(..) => {
+                let (coeff, degree) = Self::extract_term(expr, variable)?;
+                *coefficients.entry(degree).or_insert(0.0) += sign * coeff;
+            }
+            Expression::Pow(..) => {
+                let (coeff, degree) = Self::extract_term(expr, variable)?;
+                *coefficients.entry(degree).or_insert(0.0) += sign * coeff;
+            }
+            Expression::Neg(inner) => {
+                Self::collect_polynomial_terms(inner, variable, coefficients, -sign)?;
+            }
             _ => {
                 return Err(EvaluationError::UnsupportedOperation(
                     "Unsupported expression in polynomial".to_string(),
@@ -303,26 +296,18 @@ impl EquationSolver {
 
     fn extract_term(expr: &Expression, variable: &str) -> Result<(f64, i32), EvaluationError> {
         match expr {
-            Expression::Real(n) => Ok((*n, 0)),
-            Expression::Complex(c) if c.is_real() => Ok((c.real, 0)),
+            Expression::Value(Value::Real(n)) => Ok((*n, 0)),
+            Expression::Value(Value::Complex(c)) if c.is_real() => Ok((c.real, 0)),
             Expression::Variable(name) if name == variable => Ok((1.0, 1)),
-            Expression::BinaryOp {
-                left,
-                op: BinaryOperator::Multiply,
-                right,
-            } => {
+            Expression::Mul(left, right) => {
                 let (left_coeff, left_degree) = Self::extract_term(left, variable)?;
                 let (right_coeff, right_degree) = Self::extract_term(right, variable)?;
                 Ok((left_coeff * right_coeff, left_degree + right_degree))
             }
-            Expression::BinaryOp {
-                left,
-                op: BinaryOperator::Power,
-                right,
-            } => {
+            Expression::Pow(left, right) => {
                 if let Expression::Variable(name) = left.as_ref() {
                     if name == variable {
-                        if let Expression::Real(exp) = right.as_ref() {
+                        if let Expression::Value(Value::Real(exp)) = right.as_ref() {
                             return Ok((1.0, *exp as i32));
                         }
                     }

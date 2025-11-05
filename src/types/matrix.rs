@@ -3,7 +3,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::error::EvaluationError;
 use crate::types::complex::Complex;
-use crate::types::expression::Expression;
+use crate::types::expression::{Expression, Value};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {
@@ -31,9 +31,9 @@ impl Matrix {
         for i in 0..dimension {
             for j in 0..dimension {
                 if i == j {
-                    data.push(Expression::Real(1.0));
+                    data.push(Expression::Value(Value::Real(1.0)));
                 } else {
-                    data.push(Expression::Real(0.0));
+                    data.push(Expression::Value(Value::Real(0.0)));
                 }
             }
         }
@@ -152,7 +152,7 @@ impl Mul for Matrix {
 
         for i in 0..self.rows {
             for j in 0..rhs.cols {
-                let mut sum = Expression::Complex(Complex::new(0.0, 0.0));
+                let mut sum = Expression::Value(Value::Complex(Complex::new(0.0, 0.0)));
 
                 for k in 0..self.cols {
                     let left_elem = self.get(i, k).ok_or("Index out of bounds")?;
@@ -181,7 +181,7 @@ impl Mul<f64> for Matrix {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone().mul(Expression::Real(rhs)))
+            .map(|m| m.clone().mul(Expression::Value(Value::Real(rhs))))
             .collect();
 
         match result {
@@ -198,7 +198,7 @@ impl Mul<Complex> for Matrix {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone().mul(Expression::Complex(rhs)))
+            .map(|m| m.clone().mul(Expression::Value(Value::Complex(rhs))))
             .collect();
 
         match result {
@@ -215,7 +215,7 @@ impl Div<f64> for Matrix {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone().div(Expression::Real(rhs)))
+            .map(|m| m.clone().div(Expression::Value(Value::Real(rhs))))
             .collect();
 
         match result {
@@ -232,7 +232,7 @@ impl Div<Complex> for Matrix {
         let result: Result<Vec<Expression>, _> = self
             .data
             .iter()
-            .map(|m| m.clone().div(Expression::Complex(rhs)))
+            .map(|m| m.clone().div(Expression::Value(Value::Complex(rhs))))
             .collect();
 
         match result {

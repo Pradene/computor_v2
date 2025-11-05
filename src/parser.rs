@@ -5,7 +5,7 @@ use crate::tokenizer::{Token, Tokenizer};
 
 use crate::context::ContextValue;
 use crate::error::ParseError;
-use crate::types::expression::{BinaryOperator, Expression, UnaryOperator};
+use crate::types::expression::{Expression, Value};
 use crate::types::vector::Vector;
 
 #[derive(Debug, Clone)]
@@ -181,20 +181,12 @@ impl LineParser {
                 Token::Plus => {
                     *pos += 1;
                     let right = self.parse_multiplication(tokens, pos)?;
-                    left = Expression::BinaryOp {
-                        left: Box::new(left),
-                        op: BinaryOperator::Add,
-                        right: Box::new(right),
-                    };
+                    left = Expression::Add(Box::new(left), Box::new(right));
                 }
                 Token::Minus => {
                     *pos += 1;
                     let right = self.parse_multiplication(tokens, pos)?;
-                    left = Expression::BinaryOp {
-                        left: Box::new(left),
-                        op: BinaryOperator::Subtract,
-                        right: Box::new(right),
-                    };
+                    left = Expression::Sub(Box::new(left), Box::new(right));
                 }
                 _ => break,
             }
@@ -215,37 +207,21 @@ impl LineParser {
                 Token::Multiply => {
                     *pos += 1;
                     let right = self.parse_power(tokens, pos)?;
-                    left = Expression::BinaryOp {
-                        left: Box::new(left),
-                        op: BinaryOperator::Multiply,
-                        right: Box::new(right),
-                    };
+                    left = Expression::Mul(Box::new(left), Box::new(right));
                 }
                 Token::Divide => {
                     *pos += 1;
                     let right = self.parse_power(tokens, pos)?;
-                    left = Expression::BinaryOp {
-                        left: Box::new(left),
-                        op: BinaryOperator::Divide,
-                        right: Box::new(right),
-                    };
+                    left = Expression::Div(Box::new(left), Box::new(right));
                 }
                 Token::Modulo => {
                     *pos += 1;
                     let right = self.parse_power(tokens, pos)?;
-                    left = Expression::BinaryOp {
-                        left: Box::new(left),
-                        op: BinaryOperator::Modulo,
-                        right: Box::new(right),
-                    };
+                    left = Expression::Mod(Box::new(left), Box::new(right));
                 }
                 Token::Identifier(_) | Token::LeftParen | Token::Imaginary => {
                     let right = self.parse_power(tokens, pos)?;
-                    left = Expression::BinaryOp {
-                        left: Box::new(left),
-                        op: BinaryOperator::Multiply,
-                        right: Box::new(right),
-                    };
+                    left = Expression::Mul(Box::new(left), Box::new(right));
                 }
                 Token::Number(_) => {
                     // Disallow number after any expression (ex: a5)
@@ -266,11 +242,7 @@ impl LineParser {
         if *pos < tokens.len() && tokens[*pos] == Token::Power {
             *pos += 1;
             let right = self.parse_power(tokens, pos)?; // Right associative
-            left = Expression::BinaryOp {
-                left: Box::new(left),
-                op: BinaryOperator::Power,
-                right: Box::new(right),
-            };
+            left = Expression::Pow(Box::new(left), Box::new(right));
         }
 
         Ok(left)
@@ -284,19 +256,13 @@ impl LineParser {
         match &tokens[*pos] {
             Token::Plus => {
                 *pos += 1;
-                let operand = self.parse_primary(tokens, pos)?;
-                Ok(Expression::UnaryOp {
-                    op: UnaryOperator::Plus,
-                    operand: Box::new(operand),
-                })
+                let inner = self.parse_primary(tokens, pos)?;
+                Ok(inner)
             }
             Token::Minus => {
                 *pos += 1;
-                let operand = self.parse_primary(tokens, pos)?;
-                Ok(Expression::UnaryOp {
-                    op: UnaryOperator::Minus,
-                    operand: Box::new(operand),
-                })
+                let inner = self.parse_primary(tokens, pos)?;
+                Ok(Expression::Neg(Box::new(inner)))
             }
             _ => self.parse_primary(tokens, pos),
         }
@@ -310,11 +276,11 @@ impl LineParser {
         match &tokens[*pos] {
             Token::Number(n) => {
                 *pos += 1;
-                Ok(Expression::Real(*n))
+                Ok(Expression::Value(Value::Real(*n)))
             }
             Token::Imaginary => {
                 *pos += 1;
-                Ok(Expression::Complex(Complex::new(0.0, 1.0)))
+                Ok(Expression::Value(Value::Complex(Complex::new(0.0, 1.0))))
             }
             Token::LeftBracket => self.parse_bracket(tokens, pos),
             Token::Identifier(name) => self.parse_identifier(tokens, pos, name.clone()),
@@ -408,7 +374,7 @@ impl LineParser {
 
             // Validate that all elements in the row are not matrices
             for element in &row {
-                if let Expression::Matrix(_) = element {
+                if let Expression::Value(Value::Matrix(_)) = element {
                     return Err(ParseError::InvalidMatrix(
                         "Matrix elements cannot be matrices".to_string(),
                     ));
@@ -433,14 +399,14 @@ impl LineParser {
             return Err(ParseError::InvalidMatrix("Empty matrix".to_string()));
         }
 
-        Ok(Expression::Matrix(
+        Ok(Expression::Value(Value::Matrix(
             Matrix::new(
                 rows.iter().flatten().cloned().collect(),
                 rows.len(),
                 rows[0].len(),
             )
             .map_err(ParseError::InvalidMatrix)?,
-        ))
+        )))
     }
 
     fn parse_matrix_row(
@@ -498,9 +464,9 @@ impl LineParser {
         }
         *pos += 1; // consume ']'
 
-        Ok(Expression::Vector(
-            Vector::new(elements).map_err(|e| ParseError::InvalidVector(e))?,
-        ))
+        Ok(Expression::Value(Value::Vector(
+            Vector::new(elements).map_err(ParseError::InvalidVector)?,
+        )))
     }
 }
 

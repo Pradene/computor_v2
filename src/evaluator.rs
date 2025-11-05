@@ -2,11 +2,9 @@ use std::collections::HashMap;
 
 use crate::context::{Context, ContextValue};
 use crate::error::EvaluationError;
+use crate::types::expression::Value;
 use crate::types::vector::Vector;
-use crate::types::{
-    expression::{BinaryOperator, Expression, UnaryOperator},
-    matrix::Matrix,
-};
+use crate::types::{expression::Expression, matrix::Matrix};
 
 #[derive(Debug, Clone)]
 pub struct ExpressionEvaluator<'a> {
@@ -28,9 +26,11 @@ impl<'a> ExpressionEvaluator<'a> {
 
     fn evaluate_internal(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         match expr {
-            Expression::Real(_) | Expression::Complex(_) => Ok(expr.clone()),
+            Expression::Value(Value::Real(_)) | Expression::Value(Value::Complex(_)) => {
+                Ok(expr.clone())
+            }
 
-            Expression::Vector(vector) => {
+            Expression::Value(Value::Vector(vector)) => {
                 let mut evaluated_vector = Vec::new();
                 for element in vector.iter() {
                     let evaluated_element = self.evaluate_internal(element)?.reduce()?;
@@ -38,12 +38,12 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
                 let result = Vector::new(evaluated_vector);
                 match result {
-                    Ok(vector) => Ok(Expression::Vector(vector)),
+                    Ok(vector) => Ok(Expression::Value(Value::Vector(vector))),
                     Err(e) => Err(EvaluationError::InvalidOperation(e)),
                 }
             }
 
-            Expression::Matrix(matrix) => {
+            Expression::Value(Value::Matrix(matrix)) => {
                 let mut evaluated_matrix = Vec::new();
                 for row in 0..matrix.rows() {
                     for col in 0..matrix.cols() {
@@ -55,7 +55,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
                 let result = Matrix::new(evaluated_matrix, matrix.rows(), matrix.cols());
                 match result {
-                    Ok(matrix) => Ok(Expression::Matrix(matrix)),
+                    Ok(matrix) => Ok(Expression::Value(Value::Matrix(matrix))),
                     Err(e) => Err(EvaluationError::InvalidOperation(e)),
                 }
             }
@@ -64,11 +64,37 @@ impl<'a> ExpressionEvaluator<'a> {
 
             Expression::FunctionCall { name, args } => self.evaluate_function_call(name, args),
 
-            Expression::BinaryOp { left, op, right } => {
-                self.evaluate_binary_operation(left, op, right)
+            Expression::Add(left, right) => {
+                let left_eval = self.evaluate_internal(left)?.reduce()?;
+                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                left_eval.add(right_eval)
             }
-
-            Expression::UnaryOp { op, operand } => self.evaluate_unary_operation(op, operand),
+            Expression::Sub(left, right) => {
+                let left_eval = self.evaluate_internal(left)?.reduce()?;
+                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                left_eval.sub(right_eval)
+            }
+            Expression::Mul(left, right) => {
+                let left_eval = self.evaluate_internal(left)?.reduce()?;
+                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                left_eval.mul(right_eval)
+            }
+            Expression::Div(left, right) => {
+                let left_eval = self.evaluate_internal(left)?.reduce()?;
+                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                left_eval.div(right_eval)
+            }
+            Expression::Mod(left, right) => {
+                let left_eval = self.evaluate_internal(left)?.reduce()?;
+                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                left_eval.rem(right_eval)
+            }
+            Expression::Pow(left, right) => {
+                let left_eval = self.evaluate_internal(left)?.reduce()?;
+                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                left_eval.pow(right_eval)
+            }
+            Expression::Neg(inner) => self.evaluate_internal(inner)?.neg(),
         }
     }
 
@@ -140,38 +166,6 @@ impl<'a> ExpressionEvaluator<'a> {
                     args: evaluated_args?,
                 })
             }
-        }
-    }
-
-    fn evaluate_binary_operation(
-        &self,
-        left: &Expression,
-        op: &BinaryOperator,
-        right: &Expression,
-    ) -> Result<Expression, EvaluationError> {
-        let left_eval = self.evaluate_internal(left)?.reduce()?;
-        let right_eval = self.evaluate_internal(right)?.reduce()?;
-
-        match op {
-            BinaryOperator::Add => left_eval.add(right_eval),
-            BinaryOperator::Subtract => left_eval.sub(right_eval),
-            BinaryOperator::Multiply => left_eval.mul(right_eval),
-            BinaryOperator::Divide => left_eval.div(right_eval),
-            BinaryOperator::Modulo => left_eval.rem(right_eval),
-            BinaryOperator::Power => left_eval.pow(right_eval),
-        }
-    }
-
-    fn evaluate_unary_operation(
-        &self,
-        op: &UnaryOperator,
-        operand: &Expression,
-    ) -> Result<Expression, EvaluationError> {
-        let operand_eval = self.evaluate_internal(operand)?;
-
-        match op {
-            UnaryOperator::Plus => Ok(operand_eval),
-            UnaryOperator::Minus => operand_eval.neg(),
         }
     }
 }
