@@ -22,10 +22,6 @@ impl<'a> ExpressionEvaluator<'a> {
     }
 
     pub fn evaluate(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
-        self.evaluate_internal(expr)?.reduce()
-    }
-
-    fn evaluate_internal(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         match expr {
             Expression::Value(Value::Real(_)) | Expression::Value(Value::Complex(_)) => {
                 Ok(expr.clone())
@@ -34,7 +30,7 @@ impl<'a> ExpressionEvaluator<'a> {
             Expression::Value(Value::Vector(vector)) => {
                 let mut evaluated_vector = Vec::new();
                 for element in vector.iter() {
-                    let evaluated_element = self.evaluate_internal(element)?.reduce()?;
+                    let evaluated_element = self.evaluate(element)?.reduce()?;
                     evaluated_vector.push(evaluated_element);
                 }
                 let result = Vector::new(evaluated_vector);
@@ -48,9 +44,8 @@ impl<'a> ExpressionEvaluator<'a> {
                 let mut evaluated_matrix = Vec::new();
                 for row in 0..matrix.rows() {
                     for col in 0..matrix.cols() {
-                        let evaluated_element = self
-                            .evaluate_internal(matrix.get(row, col).unwrap())?
-                            .reduce()?;
+                        let evaluated_element =
+                            self.evaluate(matrix.get(row, col).unwrap())?.reduce()?;
                         evaluated_matrix.push(evaluated_element);
                     }
                 }
@@ -66,36 +61,36 @@ impl<'a> ExpressionEvaluator<'a> {
             Expression::FunctionCall(fc) => self.evaluate_function_call(fc),
 
             Expression::Add(left, right) => {
-                let left_eval = self.evaluate_internal(left)?.reduce()?;
-                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                let left_eval = self.evaluate(left)?.reduce()?;
+                let right_eval = self.evaluate(right)?.reduce()?;
                 left_eval.add(right_eval)
             }
             Expression::Sub(left, right) => {
-                let left_eval = self.evaluate_internal(left)?.reduce()?;
-                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                let left_eval = self.evaluate(left)?.reduce()?;
+                let right_eval = self.evaluate(right)?.reduce()?;
                 left_eval.sub(right_eval)
             }
             Expression::Mul(left, right) => {
-                let left_eval = self.evaluate_internal(left)?.reduce()?;
-                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                let left_eval = self.evaluate(left)?.reduce()?;
+                let right_eval = self.evaluate(right)?.reduce()?;
                 left_eval.mul(right_eval)
             }
             Expression::Div(left, right) => {
-                let left_eval = self.evaluate_internal(left)?.reduce()?;
-                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                let left_eval = self.evaluate(left)?.reduce()?;
+                let right_eval = self.evaluate(right)?.reduce()?;
                 left_eval.div(right_eval)
             }
             Expression::Mod(left, right) => {
-                let left_eval = self.evaluate_internal(left)?.reduce()?;
-                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                let left_eval = self.evaluate(left)?.reduce()?;
+                let right_eval = self.evaluate(right)?.reduce()?;
                 left_eval.rem(right_eval)
             }
             Expression::Pow(left, right) => {
-                let left_eval = self.evaluate_internal(left)?.reduce()?;
-                let right_eval = self.evaluate_internal(right)?.reduce()?;
+                let left_eval = self.evaluate(left)?.reduce()?;
+                let right_eval = self.evaluate(right)?.reduce()?;
                 left_eval.pow(right_eval)
             }
-            Expression::Neg(inner) => self.evaluate_internal(inner)?.neg(),
+            Expression::Neg(inner) => self.evaluate(inner)?.neg(),
         }
     }
 
@@ -109,7 +104,7 @@ impl<'a> ExpressionEvaluator<'a> {
         match self.context.get_variable(name) {
             Some(ContextValue::Variable(expr)) => {
                 // Recursively evaluate the variable's expression
-                self.evaluate_internal(expr)
+                self.evaluate(expr)
             }
             Some(ContextValue::Function { .. }) => Err(EvaluationError::InvalidOperation(format!(
                 "Cannot use function '{}' as variable",
@@ -130,11 +125,8 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
 
                 // Evaluate arguments first
-                let evaluated_args: Result<Vec<_>, _> = fc
-                    .args
-                    .iter()
-                    .map(|arg| self.evaluate_internal(arg))
-                    .collect();
+                let evaluated_args: Result<Vec<_>, _> =
+                    fc.args.iter().map(|arg| self.evaluate(arg)).collect();
 
                 let evaluated_args = evaluated_args?;
 
@@ -150,7 +142,7 @@ impl<'a> ExpressionEvaluator<'a> {
                     param_scope: function_scope,
                 };
 
-                function_evaluator.evaluate_internal(&fun.body)
+                function_evaluator.evaluate(&fun.body)
             }
             Some(ContextValue::Variable(_)) => Err(EvaluationError::InvalidOperation(format!(
                 "'{}' is not a function",
@@ -158,11 +150,8 @@ impl<'a> ExpressionEvaluator<'a> {
             ))),
             None => {
                 // Evaluate arguments and keep as symbolic function call
-                let evaluated_args: Result<Vec<_>, _> = fc
-                    .args
-                    .iter()
-                    .map(|arg| self.evaluate_internal(arg))
-                    .collect();
+                let evaluated_args: Result<Vec<_>, _> =
+                    fc.args.iter().map(|arg| self.evaluate(arg)).collect();
 
                 Ok(Expression::FunctionCall(FunctionCall {
                     name: fc.name.to_string(),

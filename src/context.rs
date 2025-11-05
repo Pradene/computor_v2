@@ -37,7 +37,7 @@ impl Context {
     }
 
     pub fn evaluate_expression(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
-        ExpressionEvaluator::new(self).evaluate(expr)
+        ExpressionEvaluator::new(self).evaluate(expr)?.reduce()
     }
 
     pub fn evaluate_equation(
@@ -46,14 +46,14 @@ impl Context {
         right: &Expression,
     ) -> Result<EquationSolution, EvaluationError> {
         let equation = (left.clone()).sub(right.clone())?;
-        let prepared_equation = self.prepare_equation(&equation)?;
+        let equation = self.prepare_equation(&equation)?;
 
-        EquationSolver::solve(&prepared_equation)
+        EquationSolver::solve(&equation)
     }
 
     fn prepare_equation(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         match expr {
-            Expression::FunctionCall(_) => self.evaluate_expression(expr),
+            Expression::FunctionCall(_) => ExpressionEvaluator::new(self).evaluate(expr),
             Expression::Add(left, right) => {
                 let left_prep = self.prepare_equation(left)?;
                 let right_prep = self.prepare_equation(right)?;
