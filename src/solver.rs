@@ -181,7 +181,6 @@ impl EquationSolver {
     fn extract_variables(expr: &Expression) -> Vec<String> {
         let mut variables = Vec::new();
         Self::collect_variables(expr, &mut variables);
-        variables.sort();
         variables
     }
 
