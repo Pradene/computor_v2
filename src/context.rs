@@ -41,11 +41,49 @@ impl Context {
         left: &Expression,
         right: &Expression,
     ) -> Result<String, EvaluationError> {
-        // Move everything to the left side: left - right = 0
         let equation = (left.clone()).sub(right.clone())?;
-        let solution = EquationSolver::solve(&equation)?;
+        let prepared_equation = self.prepare_equation(&equation)?;
+
+        let solution = EquationSolver::solve(&prepared_equation)?;
 
         Ok(format!("{}", solution))
+    }
+
+    fn prepare_equation(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
+        match expr {
+            Expression::FunctionCall { .. } => self.evaluate_expression(expr),
+            Expression::BinaryOp { left, op, right } => {
+                let left_prep = self.prepare_equation(left)?;
+                let right_prep = self.prepare_equation(right)?;
+                Ok(Expression::BinaryOp {
+                    left: Box::new(left_prep),
+                    op: op.clone(),
+                    right: Box::new(right_prep),
+                })
+            }
+            Expression::UnaryOp { op, operand } => {
+                let operand_prep = self.prepare_equation(operand)?;
+                Ok(Expression::UnaryOp {
+                    op: op.clone(),
+                    operand: Box::new(operand_prep),
+                })
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    #[allow(unused)]
+    fn contains_variables(expr: &Expression) -> bool {
+        match expr {
+            Expression::Variable(_) => true,
+            Expression::BinaryOp { left, right, .. } => {
+                Self::contains_variables(left) || Self::contains_variables(right)
+            }
+            Expression::UnaryOp { operand, .. } => Self::contains_variables(operand),
+            Expression::FunctionCall { args, .. } => args.iter().any(Self::contains_variables),
+            Expression::Matrix(matrix) => matrix.iter().any(Self::contains_variables),
+            _ => false,
+        }
     }
 
     pub fn get_variable(&self, name: &str) -> Option<&ContextValue> {

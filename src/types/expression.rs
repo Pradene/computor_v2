@@ -317,7 +317,7 @@ impl Expression {
                 let key = if variables.is_empty() {
                     "__constant__".to_string()
                 } else if variables.len() == 1 {
-                    variables[0].clone() // Just the variable name, not "8 * x"
+                    variables[0].clone()
                 } else {
                     let mut sorted_vars = variables;
                     sorted_vars.sort();
@@ -326,8 +326,17 @@ impl Expression {
 
                 *terms.entry(key).or_insert(0.0) += total_coeff;
             }
+            Expression::BinaryOp {
+                left,
+                op: BinaryOperator::Power,
+                right,
+            } => {
+                left.collect_addition_terms(terms, coeff)?;
+                right.collect_addition_terms(terms, coeff)?;
+            }
             _ => {
-                return Ok(());
+                let key = format!("{}", self);
+                *terms.entry(key).or_insert(0.0) += coeff;
             }
         }
         Ok(())

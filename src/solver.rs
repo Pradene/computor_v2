@@ -191,6 +191,7 @@ impl EquationSolver {
                 Self::collect_variables(operand, variables);
             }
             Expression::FunctionCall { args, .. } => {
+                // Collect variables from function arguments
                 for arg in args {
                     Self::collect_variables(arg, variables);
                 }
@@ -233,6 +234,25 @@ impl EquationSolver {
             Expression::Variable(name) => {
                 return Err(EvaluationError::UnsupportedOperation(format!(
                     "Unexpected variable: {}",
+                    name
+                )));
+            }
+            Expression::FunctionCall { name, .. } => {
+                // Check if function call contains the solving variable
+                let mut vars = Vec::new();
+                Self::collect_variables(expr, &mut vars);
+
+                if vars.contains(&variable.to_string()) {
+                    return Err(EvaluationError::UnsupportedOperation(format!(
+                        "Cannot solve equations with function calls containing the function: {}",
+                        name
+                    )));
+                }
+
+                // If function doesn't contain variable, treat as constant
+                // But we can't evaluate it without context, so error
+                return Err(EvaluationError::UnsupportedOperation(format!(
+                    "Function call {} should have been evaluated before solving",
                     name
                 )));
             }
@@ -306,6 +326,20 @@ impl EquationSolver {
                 Err(EvaluationError::UnsupportedOperation(
                     "Invalid power expression".to_string(),
                 ))
+            }
+            Expression::FunctionCall { .. } => {
+                let mut vars = Vec::new();
+                Self::collect_variables(expr, &mut vars);
+
+                if vars.contains(&variable.to_string()) {
+                    Err(EvaluationError::UnsupportedOperation(
+                        "Cannot extract term from function containing variable".to_string(),
+                    ))
+                } else {
+                    Err(EvaluationError::UnsupportedOperation(
+                        "Function should have been evaluated".to_string(),
+                    ))
+                }
             }
             _ => Err(EvaluationError::UnsupportedOperation(format!(
                 "Cannot extract term from: {:?}",
