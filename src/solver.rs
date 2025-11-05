@@ -12,14 +12,18 @@ pub struct PolynomialSolution {
 impl std::fmt::Display for PolynomialSolution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.solutions.is_empty() {
-            writeln!(f, "No solution exists")?;
+            write!(f, "No solution exists")?;
         } else if self.solutions.len() == 1 {
             writeln!(f, "The solution is:")?;
-            writeln!(f, "{} = {}", self.variable, self.solutions[0])?;
+            write!(f, "{} = {}", self.variable, self.solutions[0])?;
         } else {
             writeln!(f, "The solutions are:")?;
-            for sol in self.solutions.iter() {
-                writeln!(f, "{} = {}", self.variable, sol)?;
+            for (i, sol) in self.solutions.iter().enumerate() {
+                if i < self.solutions.len() - 1 {
+                    writeln!(f, "{} = {}", self.variable, sol)?;
+                } else {
+                    write!(f, "{} = {}", self.variable, sol)?;
+                }
             }
         }
 
