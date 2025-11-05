@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 use crate::context::{Context, ContextValue};
 use crate::error::EvaluationError;
