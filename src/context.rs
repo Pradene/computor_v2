@@ -53,7 +53,7 @@ impl Context {
 
     fn prepare_equation(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         match expr {
-            Expression::FunctionCall(_) => ExpressionEvaluator::new(self).evaluate(expr),
+            Expression::FunctionCall(_) => self.evaluate_expression(expr),
             Expression::Add(left, right) => {
                 let left_prep = self.prepare_equation(left)?;
                 let right_prep = self.prepare_equation(right)?;
