@@ -504,11 +504,56 @@ impl Expression {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum Term {
-    Constant,
-    Variable(String),
-    Expression(String),
+#[derive(Debug, Clone)]
+struct Term {
+    coefficient: f64,
+    expression: Expression,
+}
+
+impl Term {
+    fn new(coefficient: f64, expression: Expression) -> Self {
+        Term {
+            coefficient,
+            expression,
+        }
+    }
+
+    fn constant(value: f64) -> Self {
+        Term {
+            coefficient: value,
+            expression: Expression::Value(Value::Real(1.0)),
+        }
+    }
+
+    fn to_expression(self) -> Expression {
+        let coeff_abs = self.coefficient.abs();
+
+        if coeff_abs < f64::EPSILON {
+            return Expression::Value(Value::Real(0.0));
+        }
+
+        // Check if expression is just the constant 1.0
+        if matches!(self.expression, Expression::Value(Value::Real(n)) if (n - 1.0).abs() < f64::EPSILON)
+        {
+            return Expression::Value(Value::Real(self.coefficient));
+        }
+
+        if (self.coefficient - 1.0).abs() < f64::EPSILON {
+            self.expression
+        } else if (self.coefficient + 1.0).abs() < f64::EPSILON {
+            Expression::Neg(Box::new(self.expression))
+        } else {
+            Expression::Mul(
+                Box::new(Expression::Value(Value::Real(self.coefficient))),
+                Box::new(self.expression),
+            )
+        }
+    }
+
+    // Create a unique key for grouping like terms
+    fn key(&self) -> String {
+        format!("{}", self.expression)
+    }
 }
 
 impl Expression {
@@ -530,9 +575,8 @@ impl Expression {
     fn collect_terms(&self) -> Result<Expression, EvaluationError> {
         match self {
             Expression::Add(..) | Expression::Sub(..) => {
-                let mut terms: HashMap<Term, (f64, Option<Expression>)> = HashMap::new();
-                self.collect_addition_terms(&mut terms, 1.0)?;
-                self.rebuild_from_terms(terms)
+                let terms = self.extract_terms(1.0)?;
+                self.combine_like_terms(terms)
             }
             Expression::Mul(left, right) => {
                 let left_collected = left.collect_terms()?;
@@ -566,158 +610,101 @@ impl Expression {
         }
     }
 
-    fn collect_addition_terms(
-        &self,
-        terms: &mut HashMap<Term, (f64, Option<Expression>)>,
-        coeff: f64,
-    ) -> Result<(), EvaluationError> {
+    // Extract all terms from an addition/subtraction expression
+    fn extract_terms(&self, sign: f64) -> Result<Vec<Term>, EvaluationError> {
         match self {
             Expression::Add(left, right) => {
-                left.collect_addition_terms(terms, coeff)?;
-                right.collect_addition_terms(terms, coeff)?;
+                let mut terms = left.extract_terms(sign)?;
+                terms.extend(right.extract_terms(sign)?);
+                Ok(terms)
             }
             Expression::Sub(left, right) => {
-                left.collect_addition_terms(terms, coeff)?;
-                right.collect_addition_terms(terms, -coeff)?;
+                let mut terms = left.extract_terms(sign)?;
+                terms.extend(right.extract_terms(-sign)?);
+                Ok(terms)
             }
-            Expression::Neg(inner) => {
-                inner.collect_addition_terms(terms, -coeff)?;
-            }
-            Expression::Value(v) => match v {
-                Value::Real(n) => {
-                    let entry = terms.entry(Term::Constant).or_insert((0.0, None));
-                    entry.0 += coeff * n;
-                }
-                Value::Complex(c) if c.is_real() => {
-                    let entry = terms.entry(Term::Constant).or_insert((0.0, None));
-                    entry.0 += coeff * c.real;
-                }
-                _ => {
-                    let key = Term::Expression(format!("{}", self));
-                    let entry = terms.entry(key).or_insert((0.0, Some(self.clone())));
-                    entry.0 += coeff;
-                }
-            },
-            Expression::Variable(name) => {
-                let entry = terms
-                    .entry(Term::Variable(name.clone()))
-                    .or_insert((0.0, Some(self.clone())));
-                entry.0 += coeff;
+            Expression::Neg(inner) => inner.extract_terms(-sign),
+            Expression::Value(Value::Real(n)) => Ok(vec![Term::constant(sign * n)]),
+            Expression::Value(Value::Complex(c)) if c.is_real() => {
+                Ok(vec![Term::constant(sign * c.real)])
             }
             Expression::Mul(..) => {
-                let (extracted_coeff, expr_part) = self.extract_multiplication_parts();
-                let total_coeff = coeff * extracted_coeff;
-
-                if let Some(expr) = expr_part {
-                    let key = Term::Expression(format!("{}", expr));
-                    let entry = terms.entry(key).or_insert((0.0, Some(expr)));
-                    entry.0 += total_coeff;
-                } else {
-                    let entry = terms.entry(Term::Constant).or_insert((0.0, None));
-                    entry.0 += total_coeff;
-                }
+                let (coeff, expr) = self.extract_coefficient();
+                Ok(vec![Term::new(sign * coeff, expr)])
             }
             _ => {
-                let key = Term::Expression(format!("{}", self));
-                let entry = terms.entry(key).or_insert((0.0, Some(self.clone())));
-                entry.0 += coeff;
+                // Variable, Pow, FunctionCall, etc.
+                Ok(vec![Term::new(sign, self.clone())])
             }
         }
-        Ok(())
     }
 
-    fn extract_multiplication_parts(&self) -> (f64, Option<Expression>) {
+    // Extract coefficient from multiplication, returning (coefficient, remaining_expression)
+    fn extract_coefficient(&self) -> (f64, Expression) {
         let mut coefficient = 1.0;
         let mut non_constant_parts = Vec::new();
-        self.collect_multiplication_parts(&mut coefficient, &mut non_constant_parts);
+
+        self.collect_mul_parts(&mut coefficient, &mut non_constant_parts);
 
         if non_constant_parts.is_empty() {
-            (coefficient, None)
+            (coefficient, Expression::Value(Value::Real(1.0)))
         } else if non_constant_parts.len() == 1 {
-            (coefficient, Some(non_constant_parts[0].clone()))
+            (coefficient, non_constant_parts[0].clone())
         } else {
             let mut result = non_constant_parts[0].clone();
             for part in non_constant_parts.iter().skip(1) {
                 result = Expression::Mul(Box::new(result), Box::new(part.clone()));
             }
-            (coefficient, Some(result))
+            (coefficient, result)
         }
     }
 
-    fn collect_multiplication_parts(&self, coefficient: &mut f64, parts: &mut Vec<Expression>) {
+    fn collect_mul_parts(&self, coefficient: &mut f64, parts: &mut Vec<Expression>) {
         match self {
-            Expression::Value(v) => match v {
-                Value::Real(n) => *coefficient *= *n,
-                Value::Complex(c) if c.is_real() => *coefficient *= c.real,
-                _ => parts.push(self.clone()),
-            },
-            Expression::Variable(_) => parts.push(self.clone()),
-            Expression::Mul(left, right) => {
-                left.collect_multiplication_parts(coefficient, parts);
-                right.collect_multiplication_parts(coefficient, parts);
+            Expression::Value(Value::Real(n)) => {
+                *coefficient *= n;
             }
-            Expression::Pow(_, _) => {
-                parts.push(self.clone());
+            Expression::Value(Value::Complex(c)) if c.is_real() => {
+                *coefficient *= c.real;
+            }
+            Expression::Mul(left, right) => {
+                left.collect_mul_parts(coefficient, parts);
+                right.collect_mul_parts(coefficient, parts);
             }
             _ => {
+                // Variable, Pow, FunctionCall, etc. - keep as-is
                 parts.push(self.clone());
             }
         }
     }
 
-    fn rebuild_from_terms(
-        &self,
-        terms: HashMap<Term, (f64, Option<Expression>)>,
-    ) -> Result<Expression, EvaluationError> {
-        let mut result_terms = Vec::new();
+    // Combine terms with the same expression part
+    fn combine_like_terms(&self, terms: Vec<Term>) -> Result<Expression, EvaluationError> {
+        let mut combined: HashMap<String, Term> = HashMap::new();
 
-        for (term_key, (coeff, expr_opt)) in terms {
-            if coeff.abs() < f64::EPSILON {
-                continue;
-            }
-
-            let term_expr = match term_key {
-                Term::Constant => Expression::Value(Value::Real(coeff)),
-                Term::Variable(name) => {
-                    if (coeff - 1.0).abs() < f64::EPSILON {
-                        Expression::Variable(name)
-                    } else if (coeff + 1.0).abs() < f64::EPSILON {
-                        Expression::Neg(Box::new(Expression::Variable(name)))
-                    } else {
-                        Expression::Mul(
-                            Box::new(Expression::Value(Value::Real(coeff))),
-                            Box::new(Expression::Variable(name)),
-                        )
-                    }
-                }
-                Term::Expression(_) => {
-                    if let Some(expr) = expr_opt {
-                        if (coeff - 1.0).abs() < f64::EPSILON {
-                            expr
-                        } else if (coeff + 1.0).abs() < f64::EPSILON {
-                            Expression::Neg(Box::new(expr))
-                        } else {
-                            Expression::Mul(
-                                Box::new(Expression::Value(Value::Real(coeff))),
-                                Box::new(expr),
-                            )
-                        }
-                    } else {
-                        Expression::Value(Value::Real(coeff))
-                    }
-                }
-            };
-
-            result_terms.push(term_expr);
+        for term in terms {
+            let key = term.key();
+            combined
+                .entry(key)
+                .and_modify(|existing| existing.coefficient += term.coefficient)
+                .or_insert(term);
         }
 
-        if result_terms.is_empty() {
+        // Filter out zero coefficients and convert to expressions
+        let mut result_exprs: Vec<Expression> = combined
+            .into_values()
+            .filter(|term| term.coefficient.abs() >= f64::EPSILON)
+            .map(|term| term.to_expression())
+            .collect();
+
+        if result_exprs.is_empty() {
             return Ok(Expression::Value(Value::Real(0.0)));
         }
 
-        let mut result = result_terms[0].clone();
-        for term in result_terms.iter().skip(1) {
-            result = Expression::Add(Box::new(result), Box::new(term.clone()));
+        // Build the final expression with additions
+        let mut result = result_exprs.remove(0);
+        for expr in result_exprs {
+            result = Expression::Add(Box::new(result), Box::new(expr));
         }
 
         Ok(result)
