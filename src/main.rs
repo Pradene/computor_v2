@@ -7,12 +7,10 @@ fn main() -> RustylineResult<()> {
     let config = Config::builder().history_ignore_dups(true)?.build();
     let history_file = "history.txt";
 
-    let mut reader: Editor<(), _> = Editor::with_config(config)?;
-    if reader.load_history(history_file).is_err() {
-        println!("No history found.");
-    }
-
+    let mut reader = Editor::<(), _>::with_config(config)?;
+    let _ = reader.load_history(history_file);
     let mut context = Context::new();
+
     let parser = LineParser::new();
 
     loop {
