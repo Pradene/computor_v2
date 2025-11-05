@@ -3,9 +3,9 @@ use crate::types::matrix::Matrix;
 
 use crate::tokenizer::{Token, Tokenizer};
 
-use crate::context::ContextValue;
+use crate::context::{ContextValue, Function};
 use crate::error::ParseError;
-use crate::types::expression::{Expression, Value};
+use crate::types::expression::{Expression, FunctionCall, Value};
 use crate::types::vector::Vector;
 
 #[derive(Debug, Clone)]
@@ -108,7 +108,7 @@ impl LineParser {
         let body_tokens = &tokens[param_end + 2..tokens.len() - 1]; // exclude EOF
         let body = self.parse_expression_from_tokens(body_tokens)?;
 
-        let value = ContextValue::Function { params, body };
+        let value = ContextValue::Function(Function { params, body });
         Ok(ParsedLine::Assignment { name, value })
     }
 
@@ -332,7 +332,7 @@ impl LineParser {
         }
         *pos += 1; // consume ')'
 
-        Ok(Expression::FunctionCall { name, args })
+        Ok(Expression::FunctionCall(FunctionCall { name, args }))
     }
 
     fn parse_parenthesized_expression(

@@ -3,7 +3,7 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 use crate::context::{Context, ContextValue};
 use crate::error::EvaluationError;
-use crate::types::expression::Value;
+use crate::types::expression::{FunctionCall, Value};
 use crate::types::vector::Vector;
 use crate::types::{expression::Expression, matrix::Matrix};
 
@@ -63,7 +63,7 @@ impl<'a> ExpressionEvaluator<'a> {
 
             Expression::Variable(name) => self.resolve_variable(name),
 
-            Expression::FunctionCall { name, args } => self.evaluate_function_call(name, args),
+            Expression::FunctionCall(fc) => self.evaluate_function_call(fc),
 
             Expression::Add(left, right) => {
                 let left_eval = self.evaluate_internal(left)?.reduce()?;
@@ -119,29 +119,28 @@ impl<'a> ExpressionEvaluator<'a> {
         }
     }
 
-    fn evaluate_function_call(
-        &self,
-        name: &str,
-        args: &[Expression],
-    ) -> Result<Expression, EvaluationError> {
-        match self.context.get_variable(name) {
-            Some(ContextValue::Function { params, body }) => {
-                if args.len() != params.len() {
+    fn evaluate_function_call(&self, fc: &FunctionCall) -> Result<Expression, EvaluationError> {
+        match self.context.get_variable(fc.name.as_str()) {
+            Some(ContextValue::Function(fun)) => {
+                if fc.args.len() != fun.params.len() {
                     return Err(EvaluationError::WrongArgumentCount {
-                        expected: params.len(),
-                        got: args.len(),
+                        expected: fun.params.len(),
+                        got: fc.args.len(),
                     });
                 }
 
                 // Evaluate arguments first
-                let evaluated_args: Result<Vec<_>, _> =
-                    args.iter().map(|arg| self.evaluate_internal(arg)).collect();
+                let evaluated_args: Result<Vec<_>, _> = fc
+                    .args
+                    .iter()
+                    .map(|arg| self.evaluate_internal(arg))
+                    .collect();
 
                 let evaluated_args = evaluated_args?;
 
                 // Create function scope by combining current scope with function parameters
                 let mut function_scope = self.param_scope.clone();
-                for (param, arg) in params.iter().zip(evaluated_args.iter()) {
+                for (param, arg) in fun.params.iter().zip(evaluated_args.iter()) {
                     function_scope.insert(param.clone(), arg.clone());
                 }
 
@@ -151,21 +150,24 @@ impl<'a> ExpressionEvaluator<'a> {
                     param_scope: function_scope,
                 };
 
-                function_evaluator.evaluate_internal(body)
+                function_evaluator.evaluate_internal(&fun.body)
             }
             Some(ContextValue::Variable(_)) => Err(EvaluationError::InvalidOperation(format!(
                 "'{}' is not a function",
-                name
+                fc.name
             ))),
             None => {
                 // Evaluate arguments and keep as symbolic function call
-                let evaluated_args: Result<Vec<_>, _> =
-                    args.iter().map(|arg| self.evaluate_internal(arg)).collect();
+                let evaluated_args: Result<Vec<_>, _> = fc
+                    .args
+                    .iter()
+                    .map(|arg| self.evaluate_internal(arg))
+                    .collect();
 
-                Ok(Expression::FunctionCall {
-                    name: name.to_string(),
+                Ok(Expression::FunctionCall(FunctionCall {
+                    name: fc.name.to_string(),
                     args: evaluated_args?,
-                })
+                }))
             }
         }
     }

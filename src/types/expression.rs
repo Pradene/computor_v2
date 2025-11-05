@@ -280,10 +280,16 @@ impl Value {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct FunctionCall {
+    pub name: String,
+    pub args: Vec<Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Value(Value),
     Variable(String),
-    FunctionCall { name: String, args: Vec<Expression> },
+    FunctionCall(FunctionCall),
     Neg(Box<Expression>),
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
@@ -298,9 +304,9 @@ impl fmt::Display for Expression {
         match self {
             Expression::Value(value) => write!(f, "{}", value),
             Expression::Variable(name) => write!(f, "{}", name),
-            Expression::FunctionCall { name, args } => {
-                write!(f, "{}(", name)?;
-                for (i, arg) in args.iter().enumerate() {
+            Expression::FunctionCall(fc) => {
+                write!(f, "{}(", fc.name)?;
+                for (i, arg) in fc.args.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
@@ -344,7 +350,7 @@ impl Expression {
     }
 
     pub fn is_function(&self) -> bool {
-        matches!(self, Expression::FunctionCall { .. })
+        matches!(self, Expression::FunctionCall(_))
     }
 }
 

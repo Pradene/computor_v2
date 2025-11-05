@@ -7,12 +7,15 @@ use crate::solver::{EquationSolution, EquationSolver};
 use crate::types::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Function {
+    pub params: Vec<String>,
+    pub body: Expression,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ContextValue {
     Variable(Expression),
-    Function {
-        params: Vec<String>,
-        body: Expression,
-    },
+    Function(Function),
 }
 
 #[derive(Debug, Clone)]
@@ -50,7 +53,7 @@ impl Context {
 
     fn prepare_equation(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         match expr {
-            Expression::FunctionCall { .. } => self.evaluate_expression(expr),
+            Expression::FunctionCall(_) => self.evaluate_expression(expr),
             Expression::Add(left, right) => {
                 let left_prep = self.prepare_equation(left)?;
                 let right_prep = self.prepare_equation(right)?;
@@ -101,7 +104,7 @@ impl Context {
         self.variables.insert(name, value.clone());
         let expr = match value {
             ContextValue::Variable(expr) => expr,
-            ContextValue::Function { body, .. } => body,
+            ContextValue::Function(func) => func.body,
         };
 
         ExpressionEvaluator::new(self).evaluate(&expr)
