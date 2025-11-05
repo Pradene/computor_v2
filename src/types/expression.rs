@@ -77,10 +77,10 @@ impl Sub for Value {
             (Value::Complex(a), Value::Complex(b)) => Ok(Value::Complex(a - b)),
             (Value::Real(a), Value::Complex(b)) => Ok(Value::Complex(Complex::new(a, 0.0) - b)),
             (Value::Complex(a), Value::Real(b)) => Ok(Value::Complex(a - Complex::new(b, 0.0))),
-            (Value::Vector(a), Value::Vector(b)) => Ok(Value::Vector((a + b).map_err(|e| {
+            (Value::Vector(a), Value::Vector(b)) => Ok(Value::Vector((a - b).map_err(|e| {
                 EvaluationError::InvalidOperation(format!("Vector addition failed: {}", e))
             })?)),
-            (Value::Matrix(a), Value::Matrix(b)) => Ok(Value::Matrix((a + b).map_err(|e| {
+            (Value::Matrix(a), Value::Matrix(b)) => Ok(Value::Matrix((a - b).map_err(|e| {
                 EvaluationError::InvalidOperation(format!("Matrix addition failed: {}", e))
             })?)),
             _ => Err(EvaluationError::InvalidOperation(
@@ -544,7 +544,7 @@ impl Expression {
             Expression::Add(left, right) => {
                 let neg_left = (*left).neg()?;
                 let neg_right = (*right).neg()?;
-                neg_left.sub(neg_right)
+                neg_left.add(neg_right)
             }
             Expression::Sub(left, right) => (*right).sub(*left),
             Expression::Mul(left, right) => {
