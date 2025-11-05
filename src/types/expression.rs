@@ -317,7 +317,7 @@ impl Expression {
                 let key = if variables.is_empty() {
                     "__constant__".to_string()
                 } else if variables.len() == 1 {
-                    variables[0].clone()
+                    variables[0].clone() // Just the variable name, not "8 * x"
                 } else {
                     let mut sorted_vars = variables;
                     sorted_vars.sort();
@@ -327,8 +327,7 @@ impl Expression {
                 *terms.entry(key).or_insert(0.0) += total_coeff;
             }
             _ => {
-                let key = format!("{}", self);
-                *terms.entry(key).or_insert(0.0) += coeff;
+                return Ok(());
             }
         }
         Ok(())
@@ -354,7 +353,7 @@ impl Expression {
                 right.collect_multiplication_parts(coefficient, variables);
             }
             Expression::Complex(c) if c.is_real() => *coefficient *= c.real,
-            _ => variables.push(format!("{}", self)),
+            _ => {}
         }
     }
 
@@ -480,7 +479,7 @@ impl Expression {
                 }),
             (Expression::Matrix(_), Expression::Real(_) | Expression::Complex(_))
             | (Expression::Real(_) | Expression::Complex(_), Expression::Matrix(_)) => Err(
-                EvaluationError::InvalidOperation(format!("Cannot add scalar and matrix")),
+                EvaluationError::InvalidOperation("Cannot add scalar and matrix".to_string()),
             ),
             _ => {
                 // Algebraic simplifications
@@ -520,7 +519,7 @@ impl Expression {
                 }),
             (Expression::Matrix(_), Expression::Real(_) | Expression::Complex(_))
             | (Expression::Real(_) | Expression::Complex(_), Expression::Matrix(_)) => Err(
-                EvaluationError::InvalidOperation(format!("Cannot subtract scalar and matrix")),
+                EvaluationError::InvalidOperation("Cannot subtract scalar and matrix".to_string()),
             ),
             _ => Ok(Expression::BinaryOp {
                 left: Box::new(self),
@@ -574,30 +573,26 @@ impl Expression {
                 }
 
                 // Distributive property
-                match &rhs {
-                    Expression::BinaryOp {
-                        left,
-                        op: BinaryOperator::Add,
-                        right,
-                    } => {
-                        let ab = (self.clone().mul(*left.clone()))?;
-                        let ac = (self.clone().mul(*right.clone()))?;
-                        return ab.add(ac);
-                    }
-                    _ => {}
+                if let Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Add,
+                    right,
+                } = &rhs
+                {
+                    let ab = (self.clone().mul(*left.clone()))?;
+                    let ac = (self.clone().mul(*right.clone()))?;
+                    return ab.add(ac);
                 }
 
-                match &self {
-                    Expression::BinaryOp {
-                        left,
-                        op: BinaryOperator::Add,
-                        right,
-                    } => {
-                        let ab = (self.clone().mul(*left.clone()))?;
-                        let ac = (self.clone().mul(*right.clone()))?;
-                        return ab.add(ac);
-                    }
-                    _ => {}
+                if let Expression::BinaryOp {
+                    left,
+                    op: BinaryOperator::Add,
+                    right,
+                } = &rhs
+                {
+                    let ab = (self.clone().mul(*left.clone()))?;
+                    let ac = (self.clone().mul(*right.clone()))?;
+                    return ab.add(ac);
                 }
 
                 Ok(Expression::BinaryOp {

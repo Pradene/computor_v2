@@ -38,7 +38,7 @@ impl Matrix {
             }
         }
 
-        Matrix::new(data, dimension, dimension).map_err(|e| EvaluationError::InvalidOperation(e))
+        Matrix::new(data, dimension, dimension).map_err(EvaluationError::InvalidOperation)
     }
 
     pub fn rows(&self) -> usize {
@@ -87,7 +87,7 @@ impl Matrix {
         for _ in 1..n {
             result = result
                 .mul(self.clone())
-                .map_err(|e| EvaluationError::InvalidOperation(e))?;
+                .map_err(EvaluationError::InvalidOperation)?;
         }
 
         Ok(result)
@@ -110,7 +110,7 @@ impl Add for Matrix {
             .collect();
 
         match result {
-            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Ok(data) => Matrix::new(data, self.rows, self.cols),
             Err(e) => Err(e.to_string()),
         }
     }
@@ -132,7 +132,7 @@ impl Sub for Matrix {
             .collect();
 
         match result {
-            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Ok(data) => Matrix::new(data, self.rows, self.cols),
             Err(e) => Err(e.to_string()),
         }
     }
@@ -159,9 +159,8 @@ impl Mul for Matrix {
                     let right_elem = rhs.get(k, j).ok_or("Index out of bounds")?;
 
                     let result = left_elem.clone().mul(right_elem.clone());
-                    match result {
-                        Err(e) => return Err(e.to_string()),
-                        Ok(_) => {}
+                    if let Err(e) = result {
+                        return Err(e.to_string());
                     };
 
                     sum = (sum.add(result.unwrap())).map_err(|e| e.to_string())?;
@@ -186,7 +185,7 @@ impl Mul<f64> for Matrix {
             .collect();
 
         match result {
-            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Ok(data) => Matrix::new(data, self.rows, self.cols),
             Err(e) => Err(e.to_string()),
         }
     }
@@ -203,7 +202,7 @@ impl Mul<Complex> for Matrix {
             .collect();
 
         match result {
-            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Ok(data) => Matrix::new(data, self.rows, self.cols),
             Err(e) => Err(e.to_string()),
         }
     }
@@ -220,7 +219,7 @@ impl Div<f64> for Matrix {
             .collect();
 
         match result {
-            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Ok(data) => Matrix::new(data, self.rows, self.cols),
             Err(e) => Err(e.to_string()),
         }
     }
@@ -237,7 +236,7 @@ impl Div<Complex> for Matrix {
             .collect();
 
         match result {
-            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Ok(data) => Matrix::new(data, self.rows, self.cols),
             Err(e) => Err(e.to_string()),
         }
     }
@@ -250,7 +249,7 @@ impl Neg for Matrix {
         let result: Result<Vec<Expression>, _> = self.data.into_iter().map(|x| x.neg()).collect();
 
         match result {
-            Ok(data) => Matrix::new(data, self.rows, self.cols).map_err(|e| e),
+            Ok(data) => Matrix::new(data, self.rows, self.cols),
             Err(e) => Err(e.to_string()),
         }
     }

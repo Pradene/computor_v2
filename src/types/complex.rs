@@ -115,11 +115,11 @@ impl Complex {
         }
 
         if exponent.is_one() {
-            return self.clone();
+            return *self;
         }
 
         let ln_z = self.ln();
-        let w_ln_z = exponent.clone() * ln_z;
+        let w_ln_z = exponent * ln_z;
         w_ln_z.exp()
     }
 

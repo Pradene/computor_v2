@@ -18,7 +18,7 @@ fn main() -> RustylineResult<()> {
     loop {
         match reader.readline("> ") {
             Ok(line) => {
-                if line.clone() == format!("quit") {
+                if line.as_str() == "quit" {
                     break;
                 }
                 if line.trim().is_empty() {

@@ -68,7 +68,7 @@ impl<'a> ExpressionEvaluator<'a> {
         match self.context.get_variable(name) {
             Some(ContextValue::Variable(expr)) => {
                 // Recursively evaluate the variable's expression
-                self.evaluate_internal(&expr)
+                self.evaluate_internal(expr)
             }
             Some(ContextValue::Function { .. }) => Err(EvaluationError::InvalidOperation(format!(
                 "Cannot use function '{}' as variable",
@@ -110,7 +110,7 @@ impl<'a> ExpressionEvaluator<'a> {
                     param_scope: function_scope,
                 };
 
-                function_evaluator.evaluate_internal(&body)
+                function_evaluator.evaluate_internal(body)
             }
             Some(ContextValue::Variable(_)) => Err(EvaluationError::InvalidOperation(format!(
                 "'{}' is not a function",

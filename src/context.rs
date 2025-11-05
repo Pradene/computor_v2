@@ -43,9 +43,7 @@ impl Context {
     ) -> Result<String, EvaluationError> {
         // Move everything to the left side: left - right = 0
         let equation = (left.clone()).sub(right.clone())?;
-        let simplified = self.evaluate_expression(&equation)?;
-
-        let solution = EquationSolver::solve(&simplified)?;
+        let solution = EquationSolver::solve(&equation)?;
 
         Ok(format!("{}", solution))
     }

@@ -12,18 +12,14 @@ pub struct PolynomialSolution {
 impl std::fmt::Display for PolynomialSolution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.solutions.is_empty() {
-            write!(f, "No solution exists\n")?;
+            writeln!(f, "No solution exists")?;
         } else if self.solutions.len() == 1 {
-            write!(f, "The solution is:\n")?;
-            write!(f, "{} = {}", self.variable, self.solutions[0])?;
+            writeln!(f, "The solution is:")?;
+            writeln!(f, "{} = {}", self.variable, self.solutions[0])?;
         } else {
-            write!(f, "The solutions are:\n")?;
-            for (i, sol) in self.solutions.iter().enumerate() {
-                if i < self.solutions.len() - 1 {
-                    write!(f, "{} = {}\n", self.variable, sol)?;
-                } else {
-                    write!(f, "{} = {}", self.variable, sol)?;
-                }
+            writeln!(f, "The solutions are:")?;
+            for sol in self.solutions.iter() {
+                writeln!(f, "{} = {}", self.variable, sol)?;
             }
         }
 
@@ -176,13 +172,17 @@ impl EquationSolver {
         let mut variables = Vec::new();
         Self::collect_variables(expr, &mut variables);
         variables.sort();
-        variables.dedup();
         variables
     }
 
     fn collect_variables(expr: &Expression, variables: &mut Vec<String>) {
         match expr {
-            Expression::Variable(name) => variables.push(name.clone()),
+            Expression::Variable(name) => {
+                // Only add if not already in the list
+                if !variables.contains(name) {
+                    variables.push(name.clone());
+                }
+            }
             Expression::BinaryOp { left, right, .. } => {
                 Self::collect_variables(left, variables);
                 Self::collect_variables(right, variables);
@@ -200,6 +200,7 @@ impl EquationSolver {
                     Self::collect_variables(elem, variables);
                 }
             }
+            // Don't collect anything from Real, Complex, or other literal types
             _ => {}
         }
     }
@@ -268,9 +269,9 @@ impl EquationSolver {
                 }
             },
             _ => {
-                return Err(EvaluationError::UnsupportedOperation(format!(
-                    "Unsupported expression in polynomial"
-                )));
+                return Err(EvaluationError::UnsupportedOperation(
+                    "Unsupported expression in polynomial".to_string(),
+                ));
             }
         }
         Ok(())

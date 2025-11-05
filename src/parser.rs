@@ -32,21 +32,21 @@ impl LineParser {
 
         if let Some(eq_pos) = self.find_equals_position(&tokens) {
             // Check for query pattern (expression = ?) or (expression = expression?)
-            if tokens.iter().nth(tokens.len() - 1 - 1) == Some(&Token::Question) {
+            if tokens.get(tokens.len() - 1 - 1) == Some(&Token::Question) {
                 if eq_pos == tokens.len() - 1 - 2 {
                     let expr_tokens = &tokens[..eq_pos];
                     let expression = self.parse_expression_from_tokens(expr_tokens)?;
-                    return Ok(ParsedLine::Query { expression });
+                    Ok(ParsedLine::Query { expression })
                 } else {
                     let lt = &tokens[..eq_pos];
                     let rt = &tokens[eq_pos + 1..];
                     let left = self.parse_expression_from_tokens(lt)?;
                     let right = self.parse_expression_from_tokens(rt)?;
-                    return Ok(ParsedLine::Equation { left, right });
+                    Ok(ParsedLine::Equation { left, right })
                 }
             } else {
                 // Handle assignment pattern
-                return self.parse_assignment(&tokens, eq_pos);
+                self.parse_assignment(&tokens, eq_pos)
             }
         } else {
             Err(ParseError::InvalidSyntax(
@@ -69,7 +69,7 @@ impl LineParser {
         let name = self.extract_variable_name(&tokens[0])?;
 
         // Check if it's a function definition
-        if self.is_function_definition(&tokens) {
+        if self.is_function_definition(tokens) {
             self.parse_function_definition(tokens, name)
         } else if eq_pos == 1 {
             // Simple variable assignment
@@ -427,7 +427,7 @@ impl LineParser {
                 rows.len(),
                 rows[0].len(),
             )
-            .map_err(|e| ParseError::InvalidMatrix(e))?,
+            .map_err(ParseError::InvalidMatrix)?,
         ))
     }
 
