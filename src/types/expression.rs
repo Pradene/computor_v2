@@ -125,6 +125,13 @@ impl Mul for Value {
                 EvaluationError::InvalidOperation(format!("Matrix multiplication failed: {}", e))
             })?)),
 
+            (Value::Matrix(a), Value::Vector(b)) => Ok(Value::Vector((a * b).map_err(|e| {
+                EvaluationError::InvalidOperation(format!(
+                    "Matrix-Vector multiplication failed: {}",
+                    e
+                ))
+            })?)),
+
             _ => Err(EvaluationError::InvalidOperation(
                 "Multiplication not supported for these Value types".to_string(),
             )),

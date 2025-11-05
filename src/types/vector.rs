@@ -18,6 +18,14 @@ impl Vector {
         Ok(Vector { data })
     }
 
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn get(&self, index: usize) -> Option<&Expression> {
+        self.data.get(index)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Expression> {
         self.data.iter()
     }

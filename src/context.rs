@@ -89,24 +89,6 @@ impl Context {
         }
     }
 
-    #[allow(unused)]
-    fn contains_variables(expr: &Expression) -> bool {
-        match expr {
-            Expression::Variable(_) => true,
-            Expression::Add(left, right)
-            | Expression::Div(left, right)
-            | Expression::Mul(left, right)
-            | Expression::Mod(left, right)
-            | Expression::Pow(left, right)
-            | Expression::Sub(left, right) => {
-                Self::contains_variables(left) || Self::contains_variables(right)
-            }
-            Expression::Neg(inner) => Self::contains_variables(inner),
-            Expression::FunctionCall { args, .. } => args.iter().any(Self::contains_variables),
-            _ => false,
-        }
-    }
-
     pub fn get_variable(&self, name: &str) -> Option<&ContextValue> {
         self.variables.get(name)
     }

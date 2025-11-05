@@ -4,6 +4,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use crate::error::EvaluationError;
 use crate::types::complex::Complex;
 use crate::types::expression::{Expression, Value};
+use crate::types::vector::Vector;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {
@@ -205,6 +206,38 @@ impl Mul<Complex> for Matrix {
             Ok(data) => Matrix::new(data, self.rows, self.cols),
             Err(e) => Err(e.to_string()),
         }
+    }
+}
+
+impl Mul<Vector> for Matrix {
+    type Output = Result<Vector, String>;
+
+    fn mul(self, rhs: Vector) -> Self::Output {
+        if self.cols != rhs.size() {
+            return Err("Invalid operation: matrix columns must equal vector size".to_string());
+        }
+
+        let mut result = Vec::with_capacity(self.rows);
+
+        for i in 0..self.rows {
+            let mut sum = Expression::Value(Value::Complex(Complex::new(0.0, 0.0)));
+
+            for k in 0..self.cols {
+                let left_elem = self.get(i, k).ok_or("Index out of bounds")?;
+                let right_elem = rhs.get(k).ok_or("Index out of bounds")?;
+
+                let result = left_elem.clone().mul(right_elem.clone());
+                if let Err(e) = result {
+                    return Err(e.to_string());
+                };
+
+                sum = (sum.add(result.unwrap())).map_err(|e| e.to_string())?;
+            }
+
+            result.push(sum);
+        }
+
+        Vector::new(result)
     }
 }
 
