@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
+use crate::context::{Context, ContextValue};
 use crate::error::EvaluationError;
 use crate::types::{complex::Complex, matrix::Matrix, vector::Vector};
 
@@ -557,6 +558,152 @@ impl Term {
 }
 
 impl Expression {
+    pub fn evaluate(&self, context: &Context) -> Result<Expression, EvaluationError> {
+        self.evaluate_internal(context, &HashMap::new())
+    }
+
+    pub fn evaluate_internal(
+        &self,
+        context: &Context,
+        scope: &HashMap<String, Expression>,
+    ) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Value(Value::Real(_)) | Expression::Value(Value::Complex(_)) => {
+                Ok(self.clone())
+            }
+
+            Expression::Value(Value::Vector(vector)) => {
+                let mut evaluated_vector = Vec::new();
+                for element in vector.iter() {
+                    let evaluated_element = element.evaluate_internal(context, scope)?.reduce()?;
+                    evaluated_vector.push(evaluated_element);
+                }
+                let result = Vector::new(evaluated_vector);
+                match result {
+                    Ok(vector) => Ok(Expression::Value(Value::Vector(vector))),
+                    Err(e) => Err(EvaluationError::InvalidOperation(e)),
+                }
+            }
+
+            Expression::Value(Value::Matrix(matrix)) => {
+                let mut evaluated_matrix = Vec::new();
+                for row in 0..matrix.rows() {
+                    for col in 0..matrix.cols() {
+                        let evaluated_element = matrix
+                            .get(row, col)
+                            .unwrap()
+                            .evaluate_internal(context, scope)?
+                            .reduce()?;
+                        evaluated_matrix.push(evaluated_element);
+                    }
+                }
+                let result = Matrix::new(evaluated_matrix, matrix.rows(), matrix.cols());
+                match result {
+                    Ok(matrix) => Ok(Expression::Value(Value::Matrix(matrix))),
+                    Err(e) => Err(EvaluationError::InvalidOperation(e)),
+                }
+            }
+
+            Expression::Variable(name) => {
+                // First check function parameter scope
+                if let Some(expr) = scope.get(name) {
+                    return Ok(expr.clone());
+                }
+
+                // Then check context variables
+                match context.get_variable(name) {
+                    Some(ContextValue::Variable(expr)) => {
+                        // Recursively evaluate the variable's expression
+                        expr.evaluate_internal(context, scope)
+                    }
+                    Some(ContextValue::Function { .. }) => Err(EvaluationError::InvalidOperation(
+                        format!("Cannot use function '{}' as variable", name),
+                    )),
+                    None => Ok(Expression::Variable(name.to_string())), // Keep symbolic
+                }
+            }
+
+            Expression::FunctionCall(fc) => {
+                match context.get_variable(fc.name.as_str()) {
+                    Some(ContextValue::Function(fun)) => {
+                        if fc.args.len() != fun.params.len() {
+                            return Err(EvaluationError::WrongArgumentCount {
+                                expected: fun.params.len(),
+                                got: fc.args.len(),
+                            });
+                        }
+
+                        // Evaluate arguments first
+                        let evaluated_args: Result<Vec<_>, _> = fc
+                            .args
+                            .iter()
+                            .map(|arg| arg.evaluate_internal(context, scope))
+                            .collect();
+
+                        let evaluated_args = evaluated_args?;
+
+                        // Create function scope by combining current scope with function parameters
+                        let mut function_scope = scope.clone();
+                        for (param, arg) in fun.params.iter().zip(evaluated_args.iter()) {
+                            function_scope.insert(param.clone(), arg.clone());
+                        }
+
+                        // Evaluate function body with new scope
+                        fun.body.evaluate_internal(context, &function_scope)
+                    }
+                    Some(ContextValue::Variable(_)) => Err(EvaluationError::InvalidOperation(
+                        format!("'{}' is not a function", fc.name),
+                    )),
+                    None => {
+                        // Evaluate arguments and keep as symbolic function call
+                        let evaluated_args: Result<Vec<_>, _> = fc
+                            .args
+                            .iter()
+                            .map(|arg| arg.evaluate_internal(context, scope))
+                            .collect();
+
+                        Ok(Expression::FunctionCall(FunctionCall {
+                            name: fc.name.clone(),
+                            args: evaluated_args?,
+                        }))
+                    }
+                }
+            }
+
+            Expression::Add(left, right) => {
+                let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
+                let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
+                left_eval.add(right_eval)
+            }
+            Expression::Sub(left, right) => {
+                let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
+                let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
+                left_eval.sub(right_eval)
+            }
+            Expression::Mul(left, right) => {
+                let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
+                let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
+                left_eval.mul(right_eval)
+            }
+            Expression::Div(left, right) => {
+                let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
+                let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
+                left_eval.div(right_eval)
+            }
+            Expression::Mod(left, right) => {
+                let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
+                let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
+                left_eval.rem(right_eval)
+            }
+            Expression::Pow(left, right) => {
+                let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
+                let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
+                left_eval.pow(right_eval)
+            }
+            Expression::Neg(inner) => inner.evaluate_internal(context, scope)?.neg(),
+        }
+    }
+
     pub fn reduce(&self) -> Result<Expression, EvaluationError> {
         let mut current = self.clone();
         const MAX_ITERATIONS: usize = 64;

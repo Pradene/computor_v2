@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::ops::Sub;
 
 use crate::error::EvaluationError;
-use crate::evaluator::ExpressionEvaluator;
 use crate::solver::{EquationSolution, EquationSolver};
 use crate::types::expression::Expression;
 
@@ -37,7 +36,7 @@ impl Context {
     }
 
     pub fn evaluate_expression(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
-        ExpressionEvaluator::new(self).evaluate(expr)?.reduce()
+        expr.evaluate(self)?.reduce()
     }
 
     pub fn evaluate_equation(
@@ -107,6 +106,6 @@ impl Context {
             ContextValue::Function(func) => func.body,
         };
 
-        ExpressionEvaluator::new(self).evaluate(&expr)
+        expr.evaluate(self)?.reduce()
     }
 }
