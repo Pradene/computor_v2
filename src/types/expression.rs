@@ -627,7 +627,28 @@ impl Expression {
                 left.collect_multiplication_parts(coefficient, variables);
                 right.collect_multiplication_parts(coefficient, variables);
             }
-            _ => {}
+            Expression::Pow(base, exponent) => {
+                let mut base_coeff = 1.0;
+                let mut base_vars = Vec::new();
+                base.collect_multiplication_parts(&mut base_coeff, &mut base_vars);
+
+                let mut exp_coeff = 1.0;
+                let mut exp_vars = Vec::new();
+                exponent.collect_multiplication_parts(&mut exp_coeff, &mut exp_vars);
+
+                if base_vars.len() == 1 && exp_vars.is_empty() && base_coeff == 1.0 {
+                    if let Expression::Value(Value::Real(n)) = &**exponent {
+                        variables.push(format!("{}^{}", base_vars[0], n));
+                    } else {
+                        variables.push(format!("{}", self));
+                    }
+                } else {
+                    variables.push(format!("{}", self));
+                }
+            }
+            _ => {
+                variables.push(format!("{}", self));
+            }
         }
     }
 
