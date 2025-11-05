@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::error::EvaluationError;
 use crate::evaluator::ExpressionEvaluator;
-use crate::solver::EquationSolver;
+use crate::solver::{EquationSolution, EquationSolver};
 use crate::types::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,13 +40,11 @@ impl Context {
         &self,
         left: &Expression,
         right: &Expression,
-    ) -> Result<String, EvaluationError> {
+    ) -> Result<EquationSolution, EvaluationError> {
         let equation = (left.clone()).sub(right.clone())?;
         let prepared_equation = self.prepare_equation(&equation)?;
 
-        let solution = EquationSolver::solve(&prepared_equation)?;
-
-        Ok(format!("{}", solution))
+        EquationSolver::solve(&prepared_equation)
     }
 
     fn prepare_equation(&self, expr: &Expression) -> Result<Expression, EvaluationError> {

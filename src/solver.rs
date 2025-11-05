@@ -4,12 +4,12 @@ use crate::types::expression::{BinaryOperator, Expression, UnaryOperator};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
-pub struct PolynomialSolution {
+pub struct EquationSolution {
     pub variable: String,
     pub solutions: Vec<Expression>,
 }
 
-impl std::fmt::Display for PolynomialSolution {
+impl std::fmt::Display for EquationSolution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.solutions.is_empty() {
             write!(f, "No solution exists")?;
@@ -34,7 +34,7 @@ impl std::fmt::Display for PolynomialSolution {
 pub struct EquationSolver;
 
 impl EquationSolver {
-    pub fn solve(equation: &Expression) -> Result<PolynomialSolution, EvaluationError> {
+    pub fn solve(equation: &Expression) -> Result<EquationSolution, EvaluationError> {
         // Extract variables from the equation
         let variables = Self::extract_variables(equation);
 
@@ -77,13 +77,13 @@ impl EquationSolver {
             }
         };
 
-        Ok(PolynomialSolution {
+        Ok(EquationSolution {
             variable,
             solutions,
         })
     }
 
-    fn solve_constant(equation: &Expression) -> Result<PolynomialSolution, EvaluationError> {
+    fn solve_constant(equation: &Expression) -> Result<EquationSolution, EvaluationError> {
         // Check if the constant expression is zero
         let is_zero = match equation {
             Expression::Real(n) => n.abs() < f64::EPSILON,
@@ -92,7 +92,7 @@ impl EquationSolver {
         };
 
         if is_zero {
-            Ok(PolynomialSolution {
+            Ok(EquationSolution {
                 variable: String::new(),
                 solutions: vec![],
             })
