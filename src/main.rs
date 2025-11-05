@@ -27,22 +27,34 @@ fn main() -> RustylineResult<()> {
                     Ok(ParsedLine::Assignment { name, value }) => {
                         match context.assign(name, value) {
                             Ok(result) => println!("{}", result),
-                            Err(e) => eprintln!("Assignment error: {}", e),
+                            Err(e) => {
+                                eprintln!("Assignment error: {}", e);
+                                continue;
+                            }
                         }
                     }
                     Ok(ParsedLine::Query { expression }) => {
                         match context.evaluate_expression(&expression) {
                             Ok(result) => println!("{}", result),
-                            Err(e) => eprintln!("Evaluation error: {}", e),
+                            Err(e) => {
+                                eprintln!("Evaluation error: {}", e);
+                                continue;
+                            }
                         }
                     }
                     Ok(ParsedLine::Equation { left, right }) => {
                         match context.evaluate_equation(&left, &right) {
                             Ok(result) => println!("{}", result),
-                            Err(e) => eprintln!("Evaluation error: {}", e),
+                            Err(e) => {
+                                eprintln!("Evaluation error: {}", e);
+                                continue;
+                            }
                         }
                     }
-                    Err(e) => println!("Parse error: {}", e),
+                    Err(e) => {
+                        eprintln!("Parse error: {}", e);
+                        continue;
+                    }
                 }
 
                 reader.add_history_entry(line.as_str())?;

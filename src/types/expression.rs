@@ -127,6 +127,7 @@ impl Mul for Value {
                 EvaluationError::InvalidOperation(format!("Matrix multiplication failed: {}", e))
             })?)),
 
+            // Matrix * Vector
             (Value::Matrix(a), Value::Vector(b)) => Ok(Value::Vector((a * b).map_err(|e| {
                 EvaluationError::InvalidOperation(format!(
                     "Matrix-Vector multiplication failed: {}",
