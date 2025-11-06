@@ -191,11 +191,11 @@ impl Equation {
 
     fn extract_variables(&self) -> Vec<String> {
         let mut variables = Vec::new();
-        self.collect_variables(&self.expression, &mut variables);
+        Self::collect_variables(&self.expression, &mut variables);
         variables
     }
 
-    fn collect_variables(&self, expr: &Expression, variables: &mut Vec<String>) {
+    fn collect_variables(expr: &Expression, variables: &mut Vec<String>) {
         match expr {
             Expression::Variable(name) => {
                 // Only add if not already in the list
@@ -206,19 +206,20 @@ impl Equation {
             Expression::Add(left, right)
             | Expression::Sub(left, right)
             | Expression::Mul(left, right)
+            | Expression::MatMul(left, right)
             | Expression::Div(left, right)
             | Expression::Mod(left, right)
             | Expression::Pow(left, right) => {
-                self.collect_variables(left, variables);
-                self.collect_variables(right, variables);
+                Self::collect_variables(left, variables);
+                Self::collect_variables(right, variables);
             }
             Expression::Neg(inner) => {
-                self.collect_variables(inner, variables);
+                Self::collect_variables(inner, variables);
             }
             Expression::FunctionCall(fc) => {
                 // Collect variables from function arguments
                 for arg in &fc.args {
-                    self.collect_variables(arg, variables);
+                    Self::collect_variables(arg, variables);
                 }
             }
             // Don't collect anything from Real, Complex, or other literal types
@@ -231,12 +232,11 @@ impl Equation {
         variable: &str,
     ) -> Result<HashMap<i32, f64>, EvaluationError> {
         let mut coefficients = HashMap::new();
-        self.collect_polynomial_terms(&self.expression, variable, &mut coefficients, 1.0)?;
+        Self::collect_polynomial_terms(&self.expression, variable, &mut coefficients, 1.0)?;
         Ok(coefficients)
     }
 
     fn collect_polynomial_terms(
-        &self,
         expr: &Expression,
         variable: &str,
         coefficients: &mut HashMap<i32, f64>,
@@ -261,7 +261,7 @@ impl Equation {
             Expression::FunctionCall(fc) => {
                 // Check if function call contains the solving variable
                 let mut vars = Vec::new();
-                self.collect_variables(expr, &mut vars);
+                Self::collect_variables(expr, &mut vars);
 
                 if vars.contains(&variable.to_string()) {
                     return Err(EvaluationError::UnsupportedOperation(format!(
@@ -278,23 +278,23 @@ impl Equation {
                 )));
             }
             Expression::Add(left, right) => {
-                self.collect_polynomial_terms(left, variable, coefficients, sign)?;
-                self.collect_polynomial_terms(right, variable, coefficients, sign)?;
+                Self::collect_polynomial_terms(left, variable, coefficients, sign)?;
+                Self::collect_polynomial_terms(right, variable, coefficients, sign)?;
             }
             Expression::Sub(left, right) => {
-                self.collect_polynomial_terms(left, variable, coefficients, sign)?;
-                self.collect_polynomial_terms(right, variable, coefficients, -sign)?;
+                Self::collect_polynomial_terms(left, variable, coefficients, sign)?;
+                Self::collect_polynomial_terms(right, variable, coefficients, -sign)?;
             }
             Expression::Mul(..) => {
-                let (coeff, degree) = self.extract_term(expr, variable)?;
+                let (coeff, degree) = Self::extract_term(expr, variable)?;
                 *coefficients.entry(degree).or_insert(0.0) += sign * coeff;
             }
             Expression::Pow(..) => {
-                let (coeff, degree) = self.extract_term(expr, variable)?;
+                let (coeff, degree) = Self::extract_term(expr, variable)?;
                 *coefficients.entry(degree).or_insert(0.0) += sign * coeff;
             }
             Expression::Neg(inner) => {
-                self.collect_polynomial_terms(inner, variable, coefficients, -sign)?;
+                Self::collect_polynomial_terms(inner, variable, coefficients, -sign)?;
             }
             _ => {
                 return Err(EvaluationError::UnsupportedOperation(
@@ -306,7 +306,6 @@ impl Equation {
     }
 
     fn extract_term(
-        &self,
         expr: &Expression,
         variable: &str,
     ) -> Result<(f64, i32), EvaluationError> {
@@ -315,8 +314,8 @@ impl Equation {
             Expression::Value(Value::Complex(c)) if c.is_real() => Ok((c.real, 0)),
             Expression::Variable(name) if name == variable => Ok((1.0, 1)),
             Expression::Mul(left, right) => {
-                let (left_coeff, left_degree) = self.extract_term(left, variable)?;
-                let (right_coeff, right_degree) = self.extract_term(right, variable)?;
+                let (left_coeff, left_degree) = Self::extract_term(left, variable)?;
+                let (right_coeff, right_degree) = Self::extract_term(right, variable)?;
                 Ok((left_coeff * right_coeff, left_degree + right_degree))
             }
             Expression::Pow(left, right) => {
@@ -333,7 +332,7 @@ impl Equation {
             }
             Expression::FunctionCall(_) => {
                 let mut vars = Vec::new();
-                self.collect_variables(expr, &mut vars);
+                Self::collect_variables(expr, &mut vars);
 
                 if vars.contains(&variable.to_string()) {
                     Err(EvaluationError::UnsupportedOperation(

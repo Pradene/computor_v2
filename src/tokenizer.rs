@@ -7,7 +7,8 @@ pub enum Token {
     Imaginary,
     Plus,
     Minus,
-    Multiply,
+    MatMul,
+    Mul,
     Divide,
     Modulo,
     Power,
@@ -119,7 +120,12 @@ impl Tokenizer {
                 }
                 '*' => {
                     self.advance();
-                    Ok(Token::Multiply)
+                    if self.current_char() == Some('*') {
+                        self.advance();
+                        Ok(Token::MatMul)
+                    } else {
+                        Ok(Token::Mul)
+                    }
                 }
                 '/' => {
                     self.advance();

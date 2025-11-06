@@ -176,6 +176,26 @@ impl Mul for Matrix {
     }
 }
 
+impl Matrix {
+    pub fn hadamard(&self, rhs: &Matrix) -> Result<Self, String> {
+        if self.rows != rhs.rows || self.cols != rhs.cols {
+            return Err("Invalid operation matrix doesn't have the same dimension".to_string());
+        }
+
+        let result: Result<Vec<Expression>, _> = self
+            .data
+            .iter()
+            .zip(rhs.data.iter())
+            .map(|(a, b)| a.clone().mul(b.clone()))
+            .collect();
+
+        match result {
+            Ok(data) => Matrix::new(data, self.rows, self.cols),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+}
+
 impl Mul<f64> for Matrix {
     type Output = Result<Self, String>;
 

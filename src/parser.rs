@@ -199,10 +199,15 @@ impl Parser {
 
         while *pos < tokens.len() {
             match &tokens[*pos] {
-                Token::Multiply => {
+                Token::Mul => {
                     *pos += 1;
                     let right = self.parse_power(tokens, pos)?;
                     left = Expression::Mul(Box::new(left), Box::new(right));
+                }
+                Token::MatMul => {
+                    *pos += 1;
+                    let right = self.parse_power(tokens, pos)?;
+                    left = Expression::MatMul(Box::new(left), Box::new(right));
                 }
                 Token::Divide => {
                     *pos += 1;

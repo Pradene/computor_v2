@@ -121,8 +121,8 @@ impl Mul for Value {
                 })?))
             }
 
-            // Matrix * Matrix
-            (Value::Matrix(a), Value::Matrix(b)) => Ok(Value::Matrix((a * b).map_err(|e| {
+            // Hadamard Matrix * Matrix
+            (Value::Matrix(a), Value::Matrix(b)) => Ok(Value::Matrix((a.hadamard(&b)).map_err(|e| {
                 EvaluationError::InvalidOperation(format!("Matrix multiplication failed: {}", e))
             })?)),
 
@@ -136,6 +136,21 @@ impl Mul for Value {
 
             (left, right) => Err(EvaluationError::InvalidOperation(format!(
                 "{} * {}",
+                left, right
+            ))),
+        }
+    }
+}
+
+impl Value {
+    // Matrix ** Matrix
+    pub fn mat_mul(self, rhs: Self) -> Result<Self, EvaluationError> {
+        match (self, rhs) {
+            (Value::Matrix(a), Value::Matrix(b)) => Ok(Value::Matrix((a * b).map_err(|e| {
+                EvaluationError::InvalidOperation(format!("Matrix multiplication failed: {}", e))
+            })?)),
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "{} ** {}",
                 left, right
             ))),
         }

@@ -25,6 +25,7 @@ pub enum Expression {
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
     Mul(Box<Expression>, Box<Expression>),
+    MatMul(Box<Expression>, Box<Expression>),
     Div(Box<Expression>, Box<Expression>),
     Mod(Box<Expression>, Box<Expression>),
     Pow(Box<Expression>, Box<Expression>),
@@ -49,6 +50,7 @@ impl fmt::Display for Expression {
             Expression::Add(left, right) => write!(f, "({} + {})", left, right),
             Expression::Sub(left, right) => write!(f, "({} - {})", left, right),
             Expression::Mul(left, right) => write!(f, "({} * {})", left, right),
+            Expression::MatMul(left, right) => write!(f, "({} ** {})", left, right),
             Expression::Div(left, right) => write!(f, "({} / {})", left, right),
             Expression::Mod(left, right) => write!(f, "({} % {})", left, right),
             Expression::Pow(left, right) => write!(f, "({} ^ {})", left, right),
@@ -117,6 +119,17 @@ impl Mul for Expression {
                 Ok(Expression::Value(left.clone().mul(right.clone())?))
             }
             _ => Ok(Expression::Mul(Box::new(self), Box::new(rhs))),
+        }
+    }
+}
+
+impl Expression {
+    pub fn mat_mul(self, rhs: Self) -> Result<Self, EvaluationError> {
+        match (&self, &rhs) {
+            (Expression::Value(left), Expression::Value(right)) => {
+                Ok(Expression::Value(left.clone().mat_mul(right.clone())?))
+            }
+            _ => Ok(Expression::MatMul(Box::new(self), Box::new(rhs))),
         }
     }
 }
@@ -249,7 +262,7 @@ impl Term {
         }
     }
 
-    fn to_expression(self) -> Expression {
+    fn to_expression(&self) -> Expression {
         let coeff_abs = self.coefficient.abs();
 
         if coeff_abs < f64::EPSILON {
@@ -263,13 +276,13 @@ impl Term {
         }
 
         if (self.coefficient - 1.0).abs() < f64::EPSILON {
-            self.expression
+            self.expression.clone()
         } else if (self.coefficient + 1.0).abs() < f64::EPSILON {
-            Expression::Neg(Box::new(self.expression))
+            Expression::Neg(Box::new(self.expression.clone()))
         } else {
             Expression::Mul(
                 Box::new(Expression::Value(Value::Real(self.coefficient))),
-                Box::new(self.expression),
+                Box::new(self.expression.clone()),
             )
         }
     }
@@ -408,6 +421,11 @@ impl Expression {
                 let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
                 let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
                 left_eval.mul(right_eval)
+            }
+            Expression::MatMul(left, right) => {
+                let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
+                let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
+                left_eval.mat_mul(right_eval)
             }
             Expression::Div(left, right) => {
                 let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
