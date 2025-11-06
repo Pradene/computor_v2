@@ -1,6 +1,7 @@
 use crate::error::EvaluationError;
+use crate::expression::Expression;
 use crate::types::complex::Complex;
-use crate::types::expression::{Expression, Value};
+use crate::types::value::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

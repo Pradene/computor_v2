@@ -1,5 +1,5 @@
-use computor_v2::context::Context;
-use computor_v2::parser::{LineParser, ParsedLine};
+use computor_v2::context::{Context, Statement};
+use computor_v2::parser::Parser;
 
 use rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult};
 
@@ -11,7 +11,7 @@ fn main() -> RustylineResult<()> {
     let _ = reader.load_history(history_file);
     let mut context = Context::new();
 
-    let parser = LineParser::new();
+    let parser = Parser::new();
 
     loop {
         match reader.readline("> ") {
@@ -24,7 +24,7 @@ fn main() -> RustylineResult<()> {
                 }
 
                 match parser.parse(&line) {
-                    Ok(ParsedLine::Assignment { name, value }) => {
+                    Ok(Statement::Assignment { name, value }) => {
                         match context.assign(name, value) {
                             Ok(result) => println!("{}", result),
                             Err(e) => {
@@ -33,7 +33,7 @@ fn main() -> RustylineResult<()> {
                             }
                         }
                     }
-                    Ok(ParsedLine::Query { expression }) => {
+                    Ok(Statement::Query { expression }) => {
                         match context.evaluate_expression(&expression) {
                             Ok(result) => println!("{}", result),
                             Err(e) => {
@@ -42,7 +42,7 @@ fn main() -> RustylineResult<()> {
                             }
                         }
                     }
-                    Ok(ParsedLine::Equation { left, right }) => {
+                    Ok(Statement::Equation { left, right }) => {
                         match context.evaluate_equation(&left, &right) {
                             Ok(result) => println!("{}", result),
                             Err(e) => {

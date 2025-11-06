@@ -1,28 +1,23 @@
 use crate::types::complex::Complex;
 use crate::types::matrix::Matrix;
 
+use crate::context::Statement;
 use crate::tokenizer::{Token, Tokenizer};
 
-use crate::context::{Function, Symbol};
+use crate::context::{FunctionDefinition, Symbol};
 use crate::error::ParseError;
-use crate::types::expression::{Expression, FunctionCall, Value};
+use crate::expression::{Expression, FunctionCall};
+use crate::types::value::Value;
 use crate::types::vector::Vector;
 
-#[derive(Debug, Clone)]
-pub enum ParsedLine {
-    Assignment { name: String, value: Symbol },
-    Equation { left: Expression, right: Expression },
-    Query { expression: Expression },
-}
+pub struct Parser;
 
-pub struct LineParser;
-
-impl LineParser {
+impl Parser {
     pub fn new() -> Self {
         Self
     }
 
-    pub fn parse(&self, line: &str) -> Result<ParsedLine, ParseError> {
+    pub fn parse(&self, line: &str) -> Result<Statement, ParseError> {
         let line = line.to_lowercase();
         let mut tokenizer = Tokenizer::new(&line);
         let tokens = tokenizer.tokenize()?;
@@ -37,13 +32,13 @@ impl LineParser {
                 if eq_pos == tokens.len() - 1 - 2 {
                     let expr_tokens = &tokens[..eq_pos];
                     let expression = self.parse_expression_from_tokens(expr_tokens)?;
-                    Ok(ParsedLine::Query { expression })
+                    Ok(Statement::Query { expression })
                 } else {
                     let lt = &tokens[..eq_pos];
                     let rt = &tokens[eq_pos + 1..];
                     let left = self.parse_expression_from_tokens(lt)?;
                     let right = self.parse_expression_from_tokens(rt)?;
-                    Ok(ParsedLine::Equation { left, right })
+                    Ok(Statement::Equation { left, right })
                 }
             } else {
                 // Handle assignment pattern
@@ -60,7 +55,7 @@ impl LineParser {
         tokens.iter().position(|t| *t == Token::Equal)
     }
 
-    fn parse_assignment(&self, tokens: &[Token], eq_pos: usize) -> Result<ParsedLine, ParseError> {
+    fn parse_assignment(&self, tokens: &[Token], eq_pos: usize) -> Result<Statement, ParseError> {
         if eq_pos == 0 {
             return Err(ParseError::InvalidSyntax(
                 "Missing variable name".to_string(),
@@ -77,7 +72,7 @@ impl LineParser {
             let expr_tokens = &tokens[eq_pos + 1..tokens.len() - 1];
             let expression = self.parse_expression_from_tokens(expr_tokens)?;
             let value = Symbol::Variable(expression);
-            Ok(ParsedLine::Assignment { name, value })
+            Ok(Statement::Assignment { name, value })
         } else {
             Err(ParseError::InvalidSyntax("Invalid assignment".to_string()))
         }
@@ -100,7 +95,7 @@ impl LineParser {
         &self,
         tokens: &[Token],
         name: String,
-    ) -> Result<ParsedLine, ParseError> {
+    ) -> Result<Statement, ParseError> {
         let param_end = self.find_function_params_end(tokens)?;
         let params = self.parse_function_parameters(tokens, param_end)?;
         self.validate_function_equals(tokens, param_end)?;
@@ -108,8 +103,8 @@ impl LineParser {
         let body_tokens = &tokens[param_end + 2..tokens.len() - 1]; // exclude EOF
         let body = self.parse_expression_from_tokens(body_tokens)?;
 
-        let value = Symbol::Function(Function { params, body });
-        Ok(ParsedLine::Assignment { name, value })
+        let value = Symbol::Function(FunctionDefinition { params, body });
+        Ok(Statement::Assignment { name, value })
     }
 
     fn find_function_params_end(&self, tokens: &[Token]) -> Result<usize, ParseError> {
@@ -470,7 +465,7 @@ impl LineParser {
     }
 }
 
-impl Default for LineParser {
+impl Default for Parser {
     fn default() -> Self {
         Self::new()
     }

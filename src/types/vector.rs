@@ -1,8 +1,9 @@
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+use crate::expression::Expression;
 use crate::types::complex::Complex;
-use crate::types::expression::{Expression, Value};
+use crate::types::value::Value;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Vector {

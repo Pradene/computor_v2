@@ -3,10 +3,17 @@ use std::ops::Sub;
 
 use crate::equation::{Equation, EquationSolution};
 use crate::error::EvaluationError;
-use crate::types::expression::Expression;
+use crate::expression::Expression;
+
+#[derive(Debug, Clone)]
+pub enum Statement {
+    Assignment { name: String, value: Symbol },
+    Equation { left: Expression, right: Expression },
+    Query { expression: Expression },
+}
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Function {
+pub struct FunctionDefinition {
     pub params: Vec<String>,
     pub body: Expression,
 }
@@ -14,7 +21,7 @@ pub struct Function {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Symbol {
     Variable(Expression),
-    Function(Function),
+    Function(FunctionDefinition),
 }
 
 #[derive(Debug, Clone)]
