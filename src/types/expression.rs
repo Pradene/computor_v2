@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
-use crate::context::{Context, ContextValue};
+use crate::context::{Context, Symbol};
 use crate::error::EvaluationError;
 use crate::types::{complex::Complex, matrix::Matrix, vector::Vector};
 
@@ -611,12 +611,12 @@ impl Expression {
                 }
 
                 // Then check context variables
-                match context.get_variable(name) {
-                    Some(ContextValue::Variable(expr)) => {
+                match context.get_symbol(name) {
+                    Some(Symbol::Variable(expr)) => {
                         // Recursively evaluate the variable's expression
                         expr.evaluate_internal(context, scope)
                     }
-                    Some(ContextValue::Function { .. }) => Err(EvaluationError::InvalidOperation(
+                    Some(Symbol::Function { .. }) => Err(EvaluationError::InvalidOperation(
                         format!("Cannot use function '{}' as variable", name),
                     )),
                     None => Ok(Expression::Variable(name.to_string())), // Keep symbolic
@@ -624,8 +624,8 @@ impl Expression {
             }
 
             Expression::FunctionCall(fc) => {
-                match context.get_variable(fc.name.as_str()) {
-                    Some(ContextValue::Function(fun)) => {
+                match context.get_symbol(fc.name.as_str()) {
+                    Some(Symbol::Function(fun)) => {
                         if fc.args.len() != fun.params.len() {
                             return Err(EvaluationError::WrongArgumentCount {
                                 expected: fun.params.len(),
@@ -651,9 +651,10 @@ impl Expression {
                         // Evaluate function body with new scope
                         fun.body.evaluate_internal(context, &function_scope)
                     }
-                    Some(ContextValue::Variable(_)) => Err(EvaluationError::InvalidOperation(
-                        format!("'{}' is not a function", fc.name),
-                    )),
+                    Some(Symbol::Variable(_)) => Err(EvaluationError::InvalidOperation(format!(
+                        "'{}' is not a function",
+                        fc.name
+                    ))),
                     None => {
                         // Evaluate arguments and keep as symbolic function call
                         let evaluated_args: Result<Vec<_>, _> = fc

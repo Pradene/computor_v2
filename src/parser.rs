@@ -3,14 +3,14 @@ use crate::types::matrix::Matrix;
 
 use crate::tokenizer::{Token, Tokenizer};
 
-use crate::context::{ContextValue, Function};
+use crate::context::{Function, Symbol};
 use crate::error::ParseError;
 use crate::types::expression::{Expression, FunctionCall, Value};
 use crate::types::vector::Vector;
 
 #[derive(Debug, Clone)]
 pub enum ParsedLine {
-    Assignment { name: String, value: ContextValue },
+    Assignment { name: String, value: Symbol },
     Equation { left: Expression, right: Expression },
     Query { expression: Expression },
 }
@@ -76,7 +76,7 @@ impl LineParser {
             // Simple variable assignment
             let expr_tokens = &tokens[eq_pos + 1..tokens.len() - 1];
             let expression = self.parse_expression_from_tokens(expr_tokens)?;
-            let value = ContextValue::Variable(expression);
+            let value = Symbol::Variable(expression);
             Ok(ParsedLine::Assignment { name, value })
         } else {
             Err(ParseError::InvalidSyntax("Invalid assignment".to_string()))
@@ -108,7 +108,7 @@ impl LineParser {
         let body_tokens = &tokens[param_end + 2..tokens.len() - 1]; // exclude EOF
         let body = self.parse_expression_from_tokens(body_tokens)?;
 
-        let value = ContextValue::Function(Function { params, body });
+        let value = Symbol::Function(Function { params, body });
         Ok(ParsedLine::Assignment { name, value })
     }
 

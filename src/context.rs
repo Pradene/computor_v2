@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::ops::Sub;
 
+use crate::equation::{Equation, EquationSolution};
 use crate::error::EvaluationError;
-use crate::solver::{EquationSolution, EquationSolver};
 use crate::types::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -12,14 +12,14 @@ pub struct Function {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ContextValue {
+pub enum Symbol {
     Variable(Expression),
     Function(Function),
 }
 
 #[derive(Debug, Clone)]
 pub struct Context {
-    variables: HashMap<String, ContextValue>,
+    symbols: HashMap<String, Symbol>,
 }
 
 impl Default for Context {
@@ -31,7 +31,7 @@ impl Default for Context {
 impl Context {
     pub fn new() -> Self {
         Context {
-            variables: HashMap::new(),
+            symbols: HashMap::new(),
         }
     }
 
@@ -44,10 +44,11 @@ impl Context {
         left: &Expression,
         right: &Expression,
     ) -> Result<EquationSolution, EvaluationError> {
-        let equation = (left.clone()).sub(right.clone())?;
-        let equation = self.prepare_equation(&equation)?;
+        let expression = (left.clone()).sub(right.clone())?;
+        let expression = self.prepare_equation(&expression)?;
 
-        EquationSolver::solve(&equation)
+        let equation = Equation::new(expression);
+        equation.solve()
     }
 
     fn prepare_equation(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
@@ -91,19 +92,15 @@ impl Context {
         }
     }
 
-    pub fn get_variable(&self, name: &str) -> Option<&ContextValue> {
-        self.variables.get(name)
+    pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
+        self.symbols.get(name)
     }
 
-    pub fn assign(
-        &mut self,
-        name: String,
-        value: ContextValue,
-    ) -> Result<Expression, EvaluationError> {
-        self.variables.insert(name, value.clone());
-        let expr = match value {
-            ContextValue::Variable(expr) => expr,
-            ContextValue::Function(func) => func.body,
+    pub fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {
+        self.symbols.insert(name, symbol.clone());
+        let expr = match symbol {
+            Symbol::Variable(expr) => expr,
+            Symbol::Function(func) => func.body,
         };
 
         expr.evaluate(self)?.reduce()
