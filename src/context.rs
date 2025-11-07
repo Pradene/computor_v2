@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::ops::Sub;
 
-use crate::equation::{Equation, EquationSolution};
 use crate::error::EvaluationError;
 use crate::expression::Expression;
+use crate::types::equation::{Equation, EquationSolution};
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -70,6 +70,14 @@ impl Context {
                 let left_prep = self.prepare_equation(left)?;
                 let right_prep = self.prepare_equation(right)?;
                 Ok(Expression::Div(Box::new(left_prep), Box::new(right_prep)))
+            }
+            Expression::MatMul(left, right) => {
+                let left_prep = self.prepare_equation(left)?;
+                let right_prep = self.prepare_equation(right)?;
+                Ok(Expression::MatMul(
+                    Box::new(left_prep),
+                    Box::new(right_prep),
+                ))
             }
             Expression::Mul(left, right) => {
                 let left_prep = self.prepare_equation(left)?;

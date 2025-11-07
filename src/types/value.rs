@@ -122,9 +122,14 @@ impl Mul for Value {
             }
 
             // Hadamard Matrix * Matrix
-            (Value::Matrix(a), Value::Matrix(b)) => Ok(Value::Matrix((a.hadamard(&b)).map_err(|e| {
-                EvaluationError::InvalidOperation(format!("Matrix multiplication failed: {}", e))
-            })?)),
+            (Value::Matrix(a), Value::Matrix(b)) => {
+                Ok(Value::Matrix((a.hadamard(&b)).map_err(|e| {
+                    EvaluationError::InvalidOperation(format!(
+                        "Matrix multiplication failed: {}",
+                        e
+                    ))
+                })?))
+            }
 
             // Matrix * Vector
             (Value::Matrix(a), Value::Vector(b)) => Ok(Value::Vector((a * b).map_err(|e| {

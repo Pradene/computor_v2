@@ -305,10 +305,7 @@ impl Equation {
         Ok(())
     }
 
-    fn extract_term(
-        expr: &Expression,
-        variable: &str,
-    ) -> Result<(f64, i32), EvaluationError> {
+    fn extract_term(expr: &Expression, variable: &str) -> Result<(f64, i32), EvaluationError> {
         match expr {
             Expression::Value(Value::Real(n)) => Ok((*n, 0)),
             Expression::Value(Value::Complex(c)) if c.is_real() => Ok((c.real, 0)),

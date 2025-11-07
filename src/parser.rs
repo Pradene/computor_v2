@@ -27,22 +27,22 @@ impl Parser {
         }
 
         if let Some(eq_pos) = self.find_equals_position(&tokens) {
-            // Check for query pattern (expression = ?) or (expression = expression?)
-            if tokens.get(tokens.len() - 1 - 1) == Some(&Token::Question) {
-                if eq_pos == tokens.len() - 1 - 2 {
-                    let expr_tokens = &tokens[..eq_pos];
-                    let expression = self.parse_expression_from_tokens(expr_tokens)?;
+            let left_tokens = &tokens[..eq_pos];
+            let right_tokens = &tokens[eq_pos + 1..tokens.len() - 1]; // Exclude EOF
+
+            // Check for query pattern (... = ... ?)
+            if right_tokens.iter().last() == Some(&Token::Question) {
+                if right_tokens.len() == 1 {
+                    let expression = self.parse_expression_from_tokens(left_tokens)?;
                     Ok(Statement::Query { expression })
                 } else {
-                    let lt = &tokens[..eq_pos];
-                    let rt = &tokens[eq_pos + 1..];
-                    let left = self.parse_expression_from_tokens(lt)?;
-                    let right = self.parse_expression_from_tokens(rt)?;
+                    let left = self.parse_expression_from_tokens(left_tokens)?;
+                    let right = self.parse_expression_from_tokens(right_tokens)?;
                     Ok(Statement::Equation { left, right })
                 }
             } else {
-                // Handle assignment pattern
-                self.parse_assignment(&tokens, eq_pos)
+                // Handle assignment
+                self.parse_assignment(left_tokens, right_tokens)
             }
         } else {
             Err(ParseError::InvalidSyntax(
@@ -55,85 +55,66 @@ impl Parser {
         tokens.iter().position(|t| *t == Token::Equal)
     }
 
-    fn parse_assignment(&self, tokens: &[Token], eq_pos: usize) -> Result<Statement, ParseError> {
-        if eq_pos == 0 {
+    fn parse_assignment(
+        &self,
+        left_tokens: &[Token],
+        right_tokens: &[Token],
+    ) -> Result<Statement, ParseError> {
+        if left_tokens.is_empty() {
             return Err(ParseError::InvalidSyntax(
                 "Missing variable name".to_string(),
             ));
         }
 
-        let name = self.extract_variable_name(&tokens[0])?;
-
-        // Check if it's a function definition
-        if self.is_function_definition(tokens) {
-            self.parse_function_definition(tokens, name)
-        } else if eq_pos == 1 {
-            // Simple variable assignment
-            let expr_tokens = &tokens[eq_pos + 1..tokens.len() - 1];
-            let expression = self.parse_expression_from_tokens(expr_tokens)?;
-            let value = Symbol::Variable(expression);
-            Ok(Statement::Assignment { name, value })
-        } else {
-            Err(ParseError::InvalidSyntax("Invalid assignment".to_string()))
-        }
-    }
-
-    fn extract_variable_name(&self, token: &Token) -> Result<String, ParseError> {
-        match token {
+        let name = match &left_tokens[0] {
             Token::Identifier(name) => Ok(name.clone()),
             _ => Err(ParseError::InvalidSyntax(
                 "Expected variable name".to_string(),
             )),
-        }
-    }
+        }?;
 
-    fn is_function_definition(&self, tokens: &[Token]) -> bool {
-        tokens.len() > 2 && tokens[1] == Token::LeftParen
-    }
+        match left_tokens.len() {
+            1 => {
+                // Simple assignment: x = ...
+                let expression = self.parse_expression_from_tokens(right_tokens)?;
+                Ok(Statement::Assignment {
+                    name,
+                    value: Symbol::Variable(expression),
+                })
+            }
+            _ => {
+                // Function definition: f(params...) = ...
+                let params = self.parse_function_parameters(left_tokens)?;
+                let body = self.parse_expression_from_tokens(right_tokens)?;
 
-    fn parse_function_definition(
-        &self,
-        tokens: &[Token],
-        name: String,
-    ) -> Result<Statement, ParseError> {
-        let param_end = self.find_function_params_end(tokens)?;
-        let params = self.parse_function_parameters(tokens, param_end)?;
-        self.validate_function_equals(tokens, param_end)?;
-
-        let body_tokens = &tokens[param_end + 2..tokens.len() - 1]; // exclude EOF
-        let body = self.parse_expression_from_tokens(body_tokens)?;
-
-        let value = Symbol::Function(FunctionDefinition { params, body });
-        Ok(Statement::Assignment { name, value })
-    }
-
-    fn find_function_params_end(&self, tokens: &[Token]) -> Result<usize, ParseError> {
-        let mut paren_count = 0;
-
-        for (i, token) in tokens.iter().enumerate().skip(1) {
-            match token {
-                Token::LeftParen => paren_count += 1,
-                Token::RightParen => {
-                    paren_count -= 1;
-                    if paren_count == 0 {
-                        return Ok(i);
-                    }
-                }
-                _ => {}
+                let value = Symbol::Function(FunctionDefinition { params, body });
+                Ok(Statement::Assignment { name, value })
             }
         }
-
-        Err(ParseError::InvalidSyntax(
-            "Missing closing parenthesis".to_string(),
-        ))
     }
 
-    fn parse_function_parameters(
-        &self,
-        tokens: &[Token],
-        param_end: usize,
-    ) -> Result<Vec<String>, ParseError> {
-        let param_tokens = &tokens[2..param_end];
+    fn parse_function_parameters(&self, tokens: &[Token]) -> Result<Vec<String>, ParseError> {
+        if tokens.len() < 3 {
+            return Err(ParseError::InvalidSyntax(
+                "Invalid function definition".to_string(),
+            ));
+        }
+
+        if tokens[1] != Token::LeftParen {
+            return Err(ParseError::InvalidSyntax(
+                "Expected '(' after function name".to_string(),
+            ));
+        }
+
+        // Check for closing parenthesis
+        if tokens.iter().last() != Some(&Token::RightParen) {
+            return Err(ParseError::InvalidSyntax(
+                "Expected ')' at the end of function parameters".to_string(),
+            ));
+        }
+
+        // Extract parameters between parentheses
+        let param_tokens = &tokens[2..tokens.len() - 1];
         let mut params = Vec::new();
 
         for token in param_tokens {
@@ -145,19 +126,6 @@ impl Parser {
         }
 
         Ok(params)
-    }
-
-    fn validate_function_equals(
-        &self,
-        tokens: &[Token],
-        param_end: usize,
-    ) -> Result<(), ParseError> {
-        if param_end + 1 >= tokens.len() || tokens[param_end + 1] != Token::Equal {
-            return Err(ParseError::InvalidSyntax(
-                "Expected '=' after function parameters".to_string(),
-            ));
-        }
-        Ok(())
     }
 
     fn parse_expression_from_tokens(&self, tokens: &[Token]) -> Result<Expression, ParseError> {
