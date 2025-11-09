@@ -313,7 +313,7 @@ impl Parser {
         }
         *pos += 1; // consume ')'
 
-        Ok(expr)
+        Ok(Expression::Paren(Box::new(expr)))
     }
 
     fn parse_bracket(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {

@@ -23,6 +23,7 @@ pub enum Expression {
     Matrix(Vec<Expression>, usize, usize),
     Variable(String),
     FunctionCall(FunctionCall),
+    Paren(Box<Expression>),
     Neg(Box<Expression>),
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
@@ -80,14 +81,15 @@ impl fmt::Display for Expression {
                 }
                 write!(f, ")")?;
             }
+            Expression::Paren(inner) => write!(f, "( {} )", inner)?,
             Expression::Neg(operand) => write!(f, "-{}", operand)?,
-            Expression::Add(left, right) => write!(f, "({} + {})", left, right)?,
-            Expression::Sub(left, right) => write!(f, "({} - {})", left, right)?,
-            Expression::Mul(left, right) => write!(f, "({} * {})", left, right)?,
-            Expression::MatMul(left, right) => write!(f, "({} ** {})", left, right)?,
-            Expression::Div(left, right) => write!(f, "({} / {})", left, right)?,
-            Expression::Mod(left, right) => write!(f, "({} % {})", left, right)?,
-            Expression::Pow(left, right) => write!(f, "({} ^ {})", left, right)?,
+            Expression::Add(left, right) => write!(f, "{} + {}", left, right)?,
+            Expression::Sub(left, right) => write!(f, "{} - {}", left, right)?,
+            Expression::Mul(left, right) => write!(f, "{} * {}", left, right)?,
+            Expression::MatMul(left, right) => write!(f, "{} ** {}", left, right)?,
+            Expression::Div(left, right) => write!(f, "{} / {}", left, right)?,
+            Expression::Mod(left, right) => write!(f, "{} % {}", left, right)?,
+            Expression::Pow(left, right) => write!(f, "{} ^ {}", left, right)?,
         };
 
         Ok(())
@@ -775,6 +777,8 @@ impl Expression {
                     }
                 }
             }
+
+            Expression::Paren(inner) => inner.evaluate_internal(context, scope)?.reduce(),
 
             Expression::Add(left, right) => {
                 let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
