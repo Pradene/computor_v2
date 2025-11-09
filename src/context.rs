@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::ops::Sub;
 
 use crate::equation::{Equation, EquationSolution};
@@ -10,6 +11,21 @@ pub enum Statement {
     Assignment { name: String, value: Symbol },
     Equation { left: Expression, right: Expression },
     Query { expression: Expression },
+}
+
+#[derive(Debug, Clone)]
+pub enum StatementResult {
+    Value(Expression),
+    Solution(EquationSolution),
+}
+
+impl fmt::Display for StatementResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StatementResult::Value(value) => write!(f, "{}", value),
+            StatementResult::Solution(solution) => write!(f, "{}", solution),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +55,23 @@ impl Context {
     pub fn new() -> Self {
         Context {
             symbols: HashMap::new(),
+        }
+    }
+
+    pub fn execute(&mut self, statement: Statement) -> Result<StatementResult, EvaluationError> {
+        match statement {
+            Statement::Assignment { name, value } => {
+                let result = self.assign(name, value)?;
+                Ok(StatementResult::Value(result))
+            }
+            Statement::Query { expression } => {
+                let result = self.evaluate_expression(&expression)?;
+                Ok(StatementResult::Value(result))
+            }
+            Statement::Equation { left, right } => {
+                let result = self.evaluate_equation(&left, &right)?;
+                Ok(StatementResult::Solution(result))
+            }
         }
     }
 

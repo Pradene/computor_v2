@@ -1,34 +1,48 @@
 use crate::error::EvaluationError;
 use crate::expression::Expression;
 use std::collections::HashMap;
+use std::fmt;
 
-#[derive(Debug, Clone)]
-pub struct EquationSolution {
-    pub variable: String,
-    pub solutions: Vec<Expression>,
+#[derive(Debug, Clone, PartialEq)]
+pub enum EquationSolution {
+    /// No solution exists (e.g., x + 1 = x + 2)
+    NoSolution,
+    
+    /// Infinitely many solutions (e.g., 5 = 5, x + 1 = x + 1)
+    Infinite,
+    
+    /// Finite number of solutions
+    Finite {
+        variable: String,
+        solutions: Vec<Expression>,
+    },
 }
 
-impl std::fmt::Display for EquationSolution {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.solutions.is_empty() {
-            write!(f, "No solution exists")?;
-        } else if self.solutions.len() == 1 {
-            writeln!(f, "The solution is:")?;
-            write!(f, "{} = {}", self.variable, self.solutions[0])?;
-        } else {
-            writeln!(f, "The solutions are:")?;
-            for (i, sol) in self.solutions.iter().enumerate() {
-                if i < self.solutions.len() - 1 {
-                    writeln!(f, "{} = {}", self.variable, sol)?;
+impl fmt::Display for EquationSolution {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EquationSolution::NoSolution => {
+                write!(f, "No solution")?;
+            }
+            EquationSolution::Infinite => {
+                write!(f, "Infinite solutions (identity)")?;
+            }
+            EquationSolution::Finite { variable, solutions } => {
+                if solutions.is_empty() {
+                    write!(f, "No solution")?;
+                } else if solutions.len() == 1 {
+                    write!(f, "{} = {}", variable, solutions[0])?;
                 } else {
-                    write!(f, "{} = {}", self.variable, sol)?;
+                    write!(f, "{} = {}\n", variable, solutions[0])?;
+                    write!(f, "{} = {}", variable, solutions[1])?;
                 }
             }
-        }
+        };
 
         Ok(())
     }
 }
+
 
 #[derive(Debug, Clone)]
 pub struct Equation {
@@ -46,7 +60,7 @@ impl Equation {
 
         if variables.is_empty() {
             // No variables - check if equation is satisfied
-            return self.solve_constant_equation();
+            return Ok(self.solve_constant_equation());
         }
 
         if variables.len() > 1 {
@@ -83,13 +97,13 @@ impl Equation {
             }
         };
 
-        Ok(EquationSolution {
+        Ok(EquationSolution::Finite {
             variable,
             solutions,
         })
     }
 
-    fn solve_constant_equation(&self) -> Result<EquationSolution, EvaluationError> {
+    fn solve_constant_equation(&self) -> EquationSolution {
         // Check if the constant expression is zero
         let is_zero = match &self.expression {
             Expression::Real(n) => n.abs() < f64::EPSILON,
@@ -98,14 +112,9 @@ impl Equation {
         };
 
         if is_zero {
-            Ok(EquationSolution {
-                variable: String::new(),
-                solutions: vec![],
-            })
+            EquationSolution::Infinite
         } else {
-            Err(EvaluationError::InvalidOperation(
-                "Equation has no solution (contradiction)".to_string(),
-            ))
+            EquationSolution::NoSolution
         }
     }
 

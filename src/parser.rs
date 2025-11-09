@@ -148,10 +148,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_multiplication(
-        tokens: &[Token],
-        pos: &mut usize,
-    ) -> Result<Expression, ParseError> {
+    fn parse_multiplication(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
         let mut left = Self::parse_power(tokens, pos)?;
 
         while *pos < tokens.len() {
@@ -355,20 +352,19 @@ impl Parser {
 
         let row_length = rows[0].len();
         if rows.iter().any(|r| r.len() != row_length) {
-            return Err(ParseError::InvalidMatrix("Rows are not all the same length".to_string()))
+            return Err(ParseError::InvalidMatrix(
+                "Rows are not all the same length".to_string(),
+            ));
         }
 
-        Ok(Expression::Matrix(            
+        Ok(Expression::Matrix(
             rows.iter().flatten().cloned().collect(),
             rows.len(),
             rows[0].len(),
         ))
     }
 
-    fn parse_matrix_row(
-        tokens: &[Token],
-        pos: &mut usize,
-    ) -> Result<Vec<Expression>, ParseError> {
+    fn parse_matrix_row(tokens: &[Token], pos: &mut usize) -> Result<Vec<Expression>, ParseError> {
         if tokens[*pos] != Token::LeftBracket {
             return Err(ParseError::InvalidSyntax(
                 "Expected '[' for matrix row".to_string(),
@@ -419,8 +415,6 @@ impl Parser {
         }
         *pos += 1; // consume ']'
 
-        Ok(Expression::Vector(
-            elements,
-        ))
+        Ok(Expression::Vector(elements))
     }
 }
