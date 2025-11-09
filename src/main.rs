@@ -11,8 +11,6 @@ fn main() -> RustylineResult<()> {
     let _ = reader.load_history(history_file);
     let mut context = Context::new();
 
-    let parser = Parser::new();
-
     loop {
         match reader.readline("> ") {
             Ok(line) => {
@@ -23,7 +21,7 @@ fn main() -> RustylineResult<()> {
                     continue;
                 }
 
-                match parser.parse(&line) {
+                match Parser::parse(&line) {
                     Ok(Statement::Assignment { name, value }) => {
                         match context.assign(name, value) {
                             Ok(result) => println!("{}", result),

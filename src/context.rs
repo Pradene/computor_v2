@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::ops::Sub;
 
+use crate::equation::{Equation, EquationSolution};
 use crate::error::EvaluationError;
 use crate::expression::Expression;
-use crate::equation::{Equation, EquationSolution};
 
 #[derive(Debug, Clone)]
 pub enum Statement {

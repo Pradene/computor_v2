@@ -164,10 +164,7 @@ impl Equation {
             let sqrt_discriminant = discriminant.sqrt();
             let x1 = (-b + sqrt_discriminant) / (2.0 * a);
             let x2 = (-b - sqrt_discriminant) / (2.0 * a);
-            Ok(vec![
-                Expression::Real(x1),
-                Expression::Real(x2),
-            ])
+            Ok(vec![Expression::Real(x1), Expression::Real(x2)])
         } else if discriminant.abs() < f64::EPSILON {
             // One real solution (double root)
             let x = -b / (2.0 * a);

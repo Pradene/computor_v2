@@ -8,11 +8,7 @@ use crate::expression::{Expression, FunctionCall};
 pub struct Parser;
 
 impl Parser {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn parse(&self, line: &str) -> Result<Statement, ParseError> {
+    pub fn parse(line: &str) -> Result<Statement, ParseError> {
         let line = line.to_lowercase();
         let mut tokenizer = Tokenizer::new(&line);
         let tokens = tokenizer.tokenize()?;
@@ -21,23 +17,23 @@ impl Parser {
             return Err(ParseError::InvalidSyntax("Empty line".to_string()));
         }
 
-        if let Some(eq_pos) = self.find_equals_position(&tokens) {
+        if let Some(eq_pos) = Self::find_equals_position(&tokens) {
             let left_tokens = &tokens[..eq_pos];
             let right_tokens = &tokens[eq_pos + 1..tokens.len() - 1]; // Exclude EOF
 
             // Check for query pattern (... = ... ?)
             if right_tokens.iter().last() == Some(&Token::Question) {
                 if right_tokens.len() == 1 {
-                    let expression = self.parse_expression_from_tokens(left_tokens)?;
+                    let expression = Self::parse_expression_from_tokens(left_tokens)?;
                     Ok(Statement::Query { expression })
                 } else {
-                    let left = self.parse_expression_from_tokens(left_tokens)?;
-                    let right = self.parse_expression_from_tokens(right_tokens)?;
+                    let left = Self::parse_expression_from_tokens(left_tokens)?;
+                    let right = Self::parse_expression_from_tokens(right_tokens)?;
                     Ok(Statement::Equation { left, right })
                 }
             } else {
                 // Handle assignment
-                self.parse_assignment(left_tokens, right_tokens)
+                Self::parse_assignment(left_tokens, right_tokens)
             }
         } else {
             Err(ParseError::InvalidSyntax(
@@ -46,12 +42,11 @@ impl Parser {
         }
     }
 
-    fn find_equals_position(&self, tokens: &[Token]) -> Option<usize> {
+    fn find_equals_position(tokens: &[Token]) -> Option<usize> {
         tokens.iter().position(|t| *t == Token::Equal)
     }
 
     fn parse_assignment(
-        &self,
         left_tokens: &[Token],
         right_tokens: &[Token],
     ) -> Result<Statement, ParseError> {
@@ -71,7 +66,7 @@ impl Parser {
         match left_tokens.len() {
             1 => {
                 // Simple assignment: x = ...
-                let expression = self.parse_expression_from_tokens(right_tokens)?;
+                let expression = Self::parse_expression_from_tokens(right_tokens)?;
                 Ok(Statement::Assignment {
                     name,
                     value: Symbol::Variable(expression),
@@ -79,8 +74,8 @@ impl Parser {
             }
             _ => {
                 // Function definition: f(params...) = ...
-                let params = self.parse_function_parameters(left_tokens)?;
-                let body = self.parse_expression_from_tokens(right_tokens)?;
+                let params = Self::parse_function_parameters(left_tokens)?;
+                let body = Self::parse_expression_from_tokens(right_tokens)?;
 
                 let value = Symbol::Function(FunctionDefinition { params, body });
                 Ok(Statement::Assignment { name, value })
@@ -88,7 +83,7 @@ impl Parser {
         }
     }
 
-    fn parse_function_parameters(&self, tokens: &[Token]) -> Result<Vec<String>, ParseError> {
+    fn parse_function_parameters(tokens: &[Token]) -> Result<Vec<String>, ParseError> {
         if tokens.len() < 3 {
             return Err(ParseError::InvalidSyntax(
                 "Invalid function definition".to_string(),
@@ -123,27 +118,27 @@ impl Parser {
         Ok(params)
     }
 
-    fn parse_expression_from_tokens(&self, tokens: &[Token]) -> Result<Expression, ParseError> {
+    fn parse_expression_from_tokens(tokens: &[Token]) -> Result<Expression, ParseError> {
         if tokens.is_empty() {
             return Err(ParseError::UnexpectedEof);
         }
 
-        self.parse_addition(tokens, &mut 0)
+        Self::parse_addition(tokens, &mut 0)
     }
 
-    fn parse_addition(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
-        let mut left = self.parse_multiplication(tokens, pos)?;
+    fn parse_addition(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+        let mut left = Self::parse_multiplication(tokens, pos)?;
 
         while *pos < tokens.len() {
             match &tokens[*pos] {
                 Token::Plus => {
                     *pos += 1;
-                    let right = self.parse_multiplication(tokens, pos)?;
+                    let right = Self::parse_multiplication(tokens, pos)?;
                     left = Expression::Add(Box::new(left), Box::new(right));
                 }
                 Token::Minus => {
                     *pos += 1;
-                    let right = self.parse_multiplication(tokens, pos)?;
+                    let right = Self::parse_multiplication(tokens, pos)?;
                     left = Expression::Sub(Box::new(left), Box::new(right));
                 }
                 _ => break,
@@ -154,36 +149,35 @@ impl Parser {
     }
 
     fn parse_multiplication(
-        &self,
         tokens: &[Token],
         pos: &mut usize,
     ) -> Result<Expression, ParseError> {
-        let mut left = self.parse_power(tokens, pos)?;
+        let mut left = Self::parse_power(tokens, pos)?;
 
         while *pos < tokens.len() {
             match &tokens[*pos] {
                 Token::Mul => {
                     *pos += 1;
-                    let right = self.parse_power(tokens, pos)?;
+                    let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mul(Box::new(left), Box::new(right));
                 }
                 Token::MatMul => {
                     *pos += 1;
-                    let right = self.parse_power(tokens, pos)?;
+                    let right = Self::parse_power(tokens, pos)?;
                     left = Expression::MatMul(Box::new(left), Box::new(right));
                 }
                 Token::Divide => {
                     *pos += 1;
-                    let right = self.parse_power(tokens, pos)?;
+                    let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Div(Box::new(left), Box::new(right));
                 }
                 Token::Modulo => {
                     *pos += 1;
-                    let right = self.parse_power(tokens, pos)?;
+                    let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mod(Box::new(left), Box::new(right));
                 }
                 Token::Identifier(_) | Token::LeftParen | Token::Imaginary => {
-                    let right = self.parse_power(tokens, pos)?;
+                    let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mul(Box::new(left), Box::new(right));
                 }
                 Token::Number(_) => {
@@ -199,19 +193,19 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_power(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
-        let mut left = self.parse_unary(tokens, pos)?;
+    fn parse_power(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+        let mut left = Self::parse_unary(tokens, pos)?;
 
         if *pos < tokens.len() && tokens[*pos] == Token::Power {
             *pos += 1;
-            let right = self.parse_power(tokens, pos)?; // Right associative
+            let right = Self::parse_power(tokens, pos)?; // Right associative
             left = Expression::Pow(Box::new(left), Box::new(right));
         }
 
         Ok(left)
     }
 
-    fn parse_unary(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+    fn parse_unary(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
         if *pos >= tokens.len() {
             return Err(ParseError::UnexpectedEof);
         }
@@ -219,19 +213,19 @@ impl Parser {
         match &tokens[*pos] {
             Token::Plus => {
                 *pos += 1;
-                let inner = self.parse_primary(tokens, pos)?;
+                let inner = Self::parse_primary(tokens, pos)?;
                 Ok(inner)
             }
             Token::Minus => {
                 *pos += 1;
-                let inner = self.parse_primary(tokens, pos)?;
+                let inner = Self::parse_primary(tokens, pos)?;
                 Ok(Expression::Neg(Box::new(inner)))
             }
-            _ => self.parse_primary(tokens, pos),
+            _ => Self::parse_primary(tokens, pos),
         }
     }
 
-    fn parse_primary(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+    fn parse_primary(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
         if *pos >= tokens.len() {
             return Err(ParseError::UnexpectedEof);
         }
@@ -245,15 +239,14 @@ impl Parser {
                 *pos += 1;
                 Ok(Expression::Complex(0.0, 1.0))
             }
-            Token::LeftBracket => self.parse_bracket(tokens, pos),
-            Token::Identifier(name) => self.parse_identifier(tokens, pos, name.clone()),
-            Token::LeftParen => self.parse_parenthesized_expression(tokens, pos),
+            Token::LeftBracket => Self::parse_bracket(tokens, pos),
+            Token::Identifier(name) => Self::parse_identifier(tokens, pos, name.clone()),
+            Token::LeftParen => Self::parse_parenthesized_expression(tokens, pos),
             _ => Err(ParseError::UnexpectedToken(format!("{:?}", tokens[*pos]))),
         }
     }
 
     fn parse_identifier(
-        &self,
         tokens: &[Token],
         pos: &mut usize,
         name: String,
@@ -262,14 +255,13 @@ impl Parser {
 
         // Check for function call
         if *pos < tokens.len() && tokens[*pos] == Token::LeftParen {
-            self.parse_function_call(tokens, pos, name)
+            Self::parse_function_call(tokens, pos, name)
         } else {
             Ok(Expression::Variable(name))
         }
     }
 
     fn parse_function_call(
-        &self,
         tokens: &[Token],
         pos: &mut usize,
         name: String,
@@ -280,7 +272,7 @@ impl Parser {
 
         // Parse arguments
         while *pos < tokens.len() && tokens[*pos] != Token::RightParen {
-            let arg = self.parse_addition(tokens, pos)?;
+            let arg = Self::parse_addition(tokens, pos)?;
             args.push(arg);
 
             if *pos < tokens.len() && tokens[*pos] == Token::Comma {
@@ -299,12 +291,11 @@ impl Parser {
     }
 
     fn parse_parenthesized_expression(
-        &self,
         tokens: &[Token],
         pos: &mut usize,
     ) -> Result<Expression, ParseError> {
         *pos += 1; // consume '('
-        let expr = self.parse_addition(tokens, pos)?;
+        let expr = Self::parse_addition(tokens, pos)?;
 
         if *pos >= tokens.len() || tokens[*pos] != Token::RightParen {
             return Err(ParseError::InvalidSyntax(
@@ -316,24 +307,24 @@ impl Parser {
         Ok(Expression::Paren(Box::new(expr)))
     }
 
-    fn parse_bracket(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+    fn parse_bracket(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
         if *pos + 1 >= tokens.len() {
             return Err(ParseError::UnexpectedEof);
         }
 
         match tokens[*pos + 1] {
-            Token::LeftBracket => self.parse_matrix(tokens, pos),
-            _ => self.parse_vector(tokens, pos),
+            Token::LeftBracket => Self::parse_matrix(tokens, pos),
+            _ => Self::parse_vector(tokens, pos),
         }
     }
 
-    fn parse_matrix(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+    fn parse_matrix(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
         *pos += 1; // consume '['
 
         let mut rows = Vec::new();
 
         while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
-            let row = self.parse_matrix_row(tokens, pos)?;
+            let row = Self::parse_matrix_row(tokens, pos)?;
 
             // Validate that all elements in the row are not matrices
             for element in &row {
@@ -375,7 +366,6 @@ impl Parser {
     }
 
     fn parse_matrix_row(
-        &self,
         tokens: &[Token],
         pos: &mut usize,
     ) -> Result<Vec<Expression>, ParseError> {
@@ -390,7 +380,7 @@ impl Parser {
 
         // Parse row elements
         while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
-            let expr = self.parse_addition(tokens, pos)?;
+            let expr = Self::parse_addition(tokens, pos)?;
             row.push(expr);
 
             if *pos < tokens.len() && tokens[*pos] == Token::Comma {
@@ -408,13 +398,13 @@ impl Parser {
         Ok(row)
     }
 
-    fn parse_vector(&self, tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
+    fn parse_vector(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
         *pos += 1; // consume '['
 
         let mut elements = Vec::new();
 
         while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
-            let expr = self.parse_addition(tokens, pos)?;
+            let expr = Self::parse_addition(tokens, pos)?;
             elements.push(expr);
 
             if *pos < tokens.len() && tokens[*pos] == Token::Comma {
@@ -432,11 +422,5 @@ impl Parser {
         Ok(Expression::Vector(
             elements,
         ))
-    }
-}
-
-impl Default for Parser {
-    fn default() -> Self {
-        Self::new()
     }
 }
