@@ -7,10 +7,10 @@ use std::fmt;
 pub enum EquationSolution {
     /// No solution exists (e.g., x + 1 = x + 2)
     NoSolution,
-    
+
     /// Infinitely many solutions (e.g., 5 = 5, x + 1 = x + 1)
     Infinite,
-    
+
     /// Finite number of solutions
     Finite {
         variable: String,
@@ -27,7 +27,10 @@ impl fmt::Display for EquationSolution {
             EquationSolution::Infinite => {
                 write!(f, "Infinite solutions (identity)")?;
             }
-            EquationSolution::Finite { variable, solutions } => {
+            EquationSolution::Finite {
+                variable,
+                solutions,
+            } => {
                 if solutions.is_empty() {
                     write!(f, "No solution")?;
                 } else if solutions.len() == 1 {
@@ -42,7 +45,6 @@ impl fmt::Display for EquationSolution {
         Ok(())
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Equation {
@@ -85,10 +87,10 @@ impl Equation {
         }
 
         // Solve based on degree
-        let solutions = match degree {
-            0 => self.solve_degree_0(&coefficients)?,
-            1 => self.solve_degree_1(&coefficients)?,
-            2 => self.solve_degree_2(&coefficients)?,
+        let solution = match degree {
+            0 => self.solve_degree_0(&coefficients),
+            1 => self.solve_degree_1(variable, &coefficients),
+            2 => self.solve_degree_2(variable, &coefficients),
             _ => {
                 return Err(EvaluationError::UnsupportedOperation(format!(
                     "Cannot solve polynomial equations of degree {}",
@@ -97,10 +99,7 @@ impl Equation {
             }
         };
 
-        Ok(EquationSolution::Finite {
-            variable,
-            solutions,
-        })
+        Ok(solution)
     }
 
     fn solve_constant_equation(&self) -> EquationSolution {
@@ -118,27 +117,23 @@ impl Equation {
         }
     }
 
-    fn solve_degree_0(
-        &self,
-        coefficients: &HashMap<i32, f64>,
-    ) -> Result<Vec<Expression>, EvaluationError> {
+    fn solve_degree_0(&self, coefficients: &HashMap<i32, f64>) -> EquationSolution {
         let c = coefficients.get(&0).copied().unwrap_or(0.0);
 
         if c.abs() < f64::EPSILON {
             // 0 = 0, infinite solutions
-            Err(EvaluationError::InvalidOperation(
-                "Infinite solutions (identity equation)".to_string(),
-            ))
+            EquationSolution::Infinite
         } else {
             // c = 0 where c ≠ 0, no solution
-            Ok(vec![])
+            EquationSolution::NoSolution
         }
     }
 
     fn solve_degree_1(
         &self,
+        variable: String,
         coefficients: &HashMap<i32, f64>,
-    ) -> Result<Vec<Expression>, EvaluationError> {
+    ) -> EquationSolution {
         // ax + b = 0
         // x = -b/a
         let a = coefficients.get(&1).copied().unwrap_or(0.0);
@@ -149,20 +144,24 @@ impl Equation {
         }
 
         let solution = -b / a;
-        Ok(vec![Expression::Real(solution)])
+        EquationSolution::Finite {
+            variable,
+            solutions: vec![Expression::Real(solution)],
+        }
     }
 
     fn solve_degree_2(
         &self,
+        variable: String,
         coefficients: &HashMap<i32, f64>,
-    ) -> Result<Vec<Expression>, EvaluationError> {
+    ) -> EquationSolution {
         // ax² + bx + c = 0
         let a = coefficients.get(&2).copied().unwrap_or(0.0);
         let b = coefficients.get(&1).copied().unwrap_or(0.0);
         let c = coefficients.get(&0).copied().unwrap_or(0.0);
 
         if a.abs() < f64::EPSILON {
-            return self.solve_degree_1(coefficients);
+            return self.solve_degree_1(variable, coefficients);
         }
 
         // Calculate discriminant: Δ = b² - 4ac
@@ -173,20 +172,29 @@ impl Equation {
             let sqrt_discriminant = discriminant.sqrt();
             let x1 = (-b + sqrt_discriminant) / (2.0 * a);
             let x2 = (-b - sqrt_discriminant) / (2.0 * a);
-            Ok(vec![Expression::Real(x1), Expression::Real(x2)])
+            EquationSolution::Finite {
+                variable,
+                solutions: vec![Expression::Real(x1), Expression::Real(x2)],
+            }
         } else if discriminant.abs() < f64::EPSILON {
             // One real solution (double root)
             let x = -b / (2.0 * a);
-            Ok(vec![Expression::Real(x)])
+            EquationSolution::Finite {
+                variable,
+                solutions: vec![Expression::Real(x)],
+            }
         } else {
             // Two complex solutions
             let real = -b / (2.0 * a);
             let imag = (-discriminant).sqrt() / (2.0 * a);
 
-            Ok(vec![
-                Expression::Complex(real, imag),
-                Expression::Complex(real, -imag),
-            ])
+            EquationSolution::Finite {
+                variable,
+                solutions: vec![
+                    Expression::Complex(real, imag),
+                    Expression::Complex(real, -imag),
+                ],
+            }
         }
     }
 
