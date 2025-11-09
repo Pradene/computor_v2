@@ -1,7 +1,5 @@
 use crate::error::EvaluationError;
 use crate::expression::Expression;
-use crate::types::complex::Complex;
-use crate::types::value::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -94,8 +92,8 @@ impl Equation {
     fn solve_constant_equation(&self) -> Result<EquationSolution, EvaluationError> {
         // Check if the constant expression is zero
         let is_zero = match &self.expression {
-            Expression::Value(Value::Real(n)) => n.abs() < f64::EPSILON,
-            Expression::Value(Value::Complex(c)) => c.is_zero(),
+            Expression::Real(n) => n.abs() < f64::EPSILON,
+            Expression::Complex(r, i) => r.abs() < f64::EPSILON && i.abs() < f64::EPSILON,
             _ => false,
         };
 
@@ -142,7 +140,7 @@ impl Equation {
         }
 
         let solution = -b / a;
-        Ok(vec![Expression::Value(Value::Real(solution))])
+        Ok(vec![Expression::Real(solution)])
     }
 
     fn solve_degree_2(
@@ -167,24 +165,21 @@ impl Equation {
             let x1 = (-b + sqrt_discriminant) / (2.0 * a);
             let x2 = (-b - sqrt_discriminant) / (2.0 * a);
             Ok(vec![
-                Expression::Value(Value::Real(x1)),
-                Expression::Value(Value::Real(x2)),
+                Expression::Real(x1),
+                Expression::Real(x2),
             ])
         } else if discriminant.abs() < f64::EPSILON {
             // One real solution (double root)
             let x = -b / (2.0 * a);
-            Ok(vec![Expression::Value(Value::Real(x))])
+            Ok(vec![Expression::Real(x)])
         } else {
             // Two complex solutions
-            let real_part = -b / (2.0 * a);
-            let imag_part = (-discriminant).sqrt() / (2.0 * a);
-
-            let x1 = Complex::new(real_part, imag_part);
-            let x2 = Complex::new(real_part, -imag_part);
+            let real = -b / (2.0 * a);
+            let imag = (-discriminant).sqrt() / (2.0 * a);
 
             Ok(vec![
-                Expression::Value(Value::Complex(x1)),
-                Expression::Value(Value::Complex(x2)),
+                Expression::Complex(real, imag),
+                Expression::Complex(real, -imag),
             ])
         }
     }
@@ -223,7 +218,7 @@ impl Equation {
                 }
             }
             // Don't collect anything from Real, Complex, or other literal types
-            Expression::Value(_) => {}
+            _ => {}
         }
     }
 
@@ -243,11 +238,11 @@ impl Equation {
         sign: f64,
     ) -> Result<(), EvaluationError> {
         match expr {
-            Expression::Value(Value::Real(n)) => {
+            Expression::Real(n) => {
                 *coefficients.entry(0).or_insert(0.0) += sign * n;
             }
-            Expression::Value(Value::Complex(c)) if c.is_real() => {
-                *coefficients.entry(0).or_insert(0.0) += sign * c.real;
+            Expression::Complex(r, i) if i.abs() < f64::EPSILON => {
+                *coefficients.entry(0).or_insert(0.0) += sign * r;
             }
             Expression::Variable(name) if name == variable => {
                 *coefficients.entry(1).or_insert(0.0) += sign;
@@ -307,8 +302,8 @@ impl Equation {
 
     fn extract_term(expr: &Expression, variable: &str) -> Result<(f64, i32), EvaluationError> {
         match expr {
-            Expression::Value(Value::Real(n)) => Ok((*n, 0)),
-            Expression::Value(Value::Complex(c)) if c.is_real() => Ok((c.real, 0)),
+            Expression::Real(n) => Ok((*n, 0)),
+            Expression::Complex(r, i) if i.abs() < f64::EPSILON => Ok((*r, 0)),
             Expression::Variable(name) if name == variable => Ok((1.0, 1)),
             Expression::Mul(left, right) => {
                 let (left_coeff, left_degree) = Self::extract_term(left, variable)?;
@@ -318,7 +313,7 @@ impl Equation {
             Expression::Pow(left, right) => {
                 if let Expression::Variable(name) = left.as_ref() {
                     if name == variable {
-                        if let Expression::Value(Value::Real(exp)) = right.as_ref() {
+                        if let Expression::Real(exp) = right.as_ref() {
                             return Ok((1.0, *exp as i32));
                         }
                     }

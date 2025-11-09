@@ -3,7 +3,7 @@ use std::ops::Sub;
 
 use crate::error::EvaluationError;
 use crate::expression::Expression;
-use crate::types::equation::{Equation, EquationSolution};
+use crate::equation::{Equation, EquationSolution};
 
 #[derive(Debug, Clone)]
 pub enum Statement {

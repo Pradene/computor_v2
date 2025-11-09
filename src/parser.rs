@@ -1,14 +1,9 @@
-use crate::types::complex::Complex;
-use crate::types::matrix::Matrix;
-
 use crate::context::Statement;
 use crate::tokenizer::{Token, Tokenizer};
 
 use crate::context::{FunctionDefinition, Symbol};
 use crate::error::ParseError;
 use crate::expression::{Expression, FunctionCall};
-use crate::types::value::Value;
-use crate::types::vector::Vector;
 
 pub struct Parser;
 
@@ -244,11 +239,11 @@ impl Parser {
         match &tokens[*pos] {
             Token::Number(n) => {
                 *pos += 1;
-                Ok(Expression::Value(Value::Real(*n)))
+                Ok(Expression::Real(*n))
             }
             Token::Imaginary => {
                 *pos += 1;
-                Ok(Expression::Value(Value::Complex(Complex::new(0.0, 1.0))))
+                Ok(Expression::Complex(0.0, 1.0))
             }
             Token::LeftBracket => self.parse_bracket(tokens, pos),
             Token::Identifier(name) => self.parse_identifier(tokens, pos, name.clone()),
@@ -342,7 +337,7 @@ impl Parser {
 
             // Validate that all elements in the row are not matrices
             for element in &row {
-                if let Expression::Value(Value::Matrix(_)) = element {
+                if let Expression::Matrix(_, _, _) = element {
                     return Err(ParseError::InvalidMatrix(
                         "Matrix elements cannot be matrices".to_string(),
                     ));
@@ -367,14 +362,11 @@ impl Parser {
             return Err(ParseError::InvalidMatrix("Empty matrix".to_string()));
         }
 
-        Ok(Expression::Value(Value::Matrix(
-            Matrix::new(
-                rows.iter().flatten().cloned().collect(),
-                rows.len(),
-                rows[0].len(),
-            )
-            .map_err(ParseError::InvalidMatrix)?,
-        )))
+        Ok(Expression::Matrix(            
+            rows.iter().flatten().cloned().collect(),
+            rows.len(),
+            rows[0].len(),
+        ))
     }
 
     fn parse_matrix_row(
@@ -432,9 +424,9 @@ impl Parser {
         }
         *pos += 1; // consume ']'
 
-        Ok(Expression::Value(Value::Vector(
-            Vector::new(elements).map_err(ParseError::InvalidVector)?,
-        )))
+        Ok(Expression::Vector(
+            elements,
+        ))
     }
 }
 

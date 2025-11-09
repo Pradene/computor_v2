@@ -7,7 +7,6 @@ use std::{
 use crate::{
     context::{Context, Symbol},
     error::EvaluationError,
-    types::{complex::Complex, matrix::Matrix, value::Value, vector::Vector},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,7 +17,10 @@ pub struct FunctionCall {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
-    Value(Value),
+    Real(f64),
+    Complex(f64, f64),
+    Vector(Vec<Expression>),
+    Matrix(Vec<Expression>, usize, usize),
     Variable(String),
     FunctionCall(FunctionCall),
     Neg(Box<Expression>),
@@ -34,8 +36,40 @@ pub enum Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expression::Value(value) => write!(f, "{}", value),
-            Expression::Variable(name) => write!(f, "{}", name),
+            Expression::Real(n) => {
+                write!(f, "{}", n)?;
+            }
+            Expression::Complex(real, imag) => {
+                write!(f, "{} + {}i", real, imag)?;
+            }
+            Expression::Vector(data) => {
+                write!(f, "[")?;
+                for (i, v) in data.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", v)?;
+                }
+                write!(f, "]")?;
+            }
+            Expression::Matrix(data, rows, cols) => {
+                write!(f, "[")?;
+                for r in 0..*rows {
+                    if r > 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "[")?;
+                    for c in 0..*cols {
+                        if c > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", &data[r * cols + c])?;
+                    }
+                    write!(f, "]")?;
+                }
+                write!(f, "]")?;
+            }
+            Expression::Variable(name) => write!(f, "{}", name)?,
             Expression::FunctionCall(fc) => {
                 write!(f, "{}(", fc.name)?;
                 for (i, arg) in fc.args.iter().enumerate() {
@@ -44,36 +78,42 @@ impl fmt::Display for Expression {
                     }
                     write!(f, "{}", arg)?;
                 }
-                write!(f, ")")
+                write!(f, ")")?;
             }
-            Expression::Neg(operand) => write!(f, "-{}", operand),
-            Expression::Add(left, right) => write!(f, "({} + {})", left, right),
-            Expression::Sub(left, right) => write!(f, "({} - {})", left, right),
-            Expression::Mul(left, right) => write!(f, "({} * {})", left, right),
-            Expression::MatMul(left, right) => write!(f, "({} ** {})", left, right),
-            Expression::Div(left, right) => write!(f, "({} / {})", left, right),
-            Expression::Mod(left, right) => write!(f, "({} % {})", left, right),
-            Expression::Pow(left, right) => write!(f, "({} ^ {})", left, right),
-        }
+            Expression::Neg(operand) => write!(f, "-{}", operand)?,
+            Expression::Add(left, right) => write!(f, "({} + {})", left, right)?,
+            Expression::Sub(left, right) => write!(f, "({} - {})", left, right)?,
+            Expression::Mul(left, right) => write!(f, "({} * {})", left, right)?,
+            Expression::MatMul(left, right) => write!(f, "({} ** {})", left, right)?,
+            Expression::Div(left, right) => write!(f, "({} / {})", left, right)?,
+            Expression::Mod(left, right) => write!(f, "({} % {})", left, right)?,
+            Expression::Pow(left, right) => write!(f, "({} ^ {})", left, right)?,
+        };
+
+        Ok(())
     }
 }
 
 impl Expression {
     pub fn is_value(&self) -> bool {
-        matches!(self, Expression::Value(_))
+        matches!(
+            self,
+            Expression::Real(_) | Expression::Complex(_, _) | Expression::Vector(_) | Expression::Matrix(_, _, _)
+        )
     }
 
     pub fn is_zero(&self) -> bool {
         match self {
-            Expression::Value(v) => v.is_zero(),
+            Expression::Real(n) => n.abs() < f64::EPSILON,
+            Expression::Complex(r, i) => r.abs() < f64::EPSILON && i.abs() < f64::EPSILON,
             _ => false,
         }
     }
 
     pub fn is_real(&self) -> bool {
         match self {
-            Expression::Value(Value::Real(_)) => true,
-            Expression::Value(Value::Complex(c)) => c.is_real(),
+            Expression::Real(_) => true,
+            Expression::Complex(_, i) => i.abs() < f64::EPSILON,
             _ => false,
         }
     }
@@ -87,71 +127,404 @@ impl Expression {
     }
 }
 
+// Complex number helpers
+impl Expression {
+    fn complex_add(a_r: f64, a_i: f64, b_r: f64, b_i: f64) -> Expression {
+        Expression::Complex(a_r + b_r, a_i + b_i)
+    }
+
+    fn complex_sub(a_r: f64, a_i: f64, b_r: f64, b_i: f64) -> Expression {
+        Expression::Complex(a_r - b_r, a_i - b_i)
+    }
+
+    fn complex_mul(a_r: f64, a_i: f64, b_r: f64, b_i: f64) -> Expression {
+        Expression::Complex(
+            a_r * b_r - a_i * b_i,
+            a_r * b_i + a_i * b_r,
+        )
+    }
+
+    fn complex_div(a_r: f64, a_i: f64, b_r: f64, b_i: f64) -> Result<Expression, EvaluationError> {
+        if b_r.abs() < f64::EPSILON && b_i.abs() < f64::EPSILON {
+            return Err(EvaluationError::DivisionByZero);
+        }
+
+        let denominator = b_r * b_r + b_i * b_i;
+        let real = (a_r * b_r + a_i * b_i) / denominator;
+        let imag = (a_i * b_r - a_r * b_i) / denominator;
+
+        Ok(Expression::Complex(real, imag))
+    }
+
+    fn complex_pow(a_r: f64, a_i: f64, b_r: f64, b_i: f64) -> Expression {
+        let a_is_zero = a_r.abs() < f64::EPSILON && a_i.abs() < f64::EPSILON;
+        let b_is_zero = b_r.abs() < f64::EPSILON && b_i.abs() < f64::EPSILON;
+        let b_is_one = (b_r - 1.0).abs() < f64::EPSILON && b_i.abs() < f64::EPSILON;
+
+        if a_is_zero {
+            if b_r > 0.0 || (b_i.abs() >= f64::EPSILON && b_r == 0.0) {
+                return Expression::Complex(0.0, 0.0);
+            } else if b_r < 0.0 {
+                return Expression::Complex(f64::INFINITY, f64::INFINITY);
+            } else {
+                return Expression::Complex(1.0, 0.0);
+            }
+        }
+
+        if b_is_zero {
+            return Expression::Complex(1.0, 0.0);
+        }
+
+        if b_is_one {
+            return Expression::Complex(a_r, a_i);
+        }
+
+        // ln(a) = ln(|a|) + i*arg(a)
+        let magnitude = (a_r * a_r + a_i * a_i).sqrt();
+        let phase = a_i.atan2(a_r);
+        let ln_r = magnitude.ln();
+        let ln_i = phase;
+
+        // b * ln(a)
+        let w_ln_r = b_r * ln_r - b_i * ln_i;
+        let w_ln_i = b_r * ln_i + b_i * ln_r;
+
+        // exp(b * ln(a))
+        let exp_real = w_ln_r.exp();
+        Expression::Complex(exp_real * w_ln_i.cos(), exp_real * w_ln_i.sin())
+    }
+
+    fn complex_sqrt(r: f64, i: f64) -> Expression {
+        if r.abs() < f64::EPSILON && i.abs() < f64::EPSILON {
+            return Expression::Complex(0.0, 0.0);
+        }
+
+        let magnitude = (r * r + i * i).sqrt();
+        let phase = i.atan2(r);
+
+        let sqrt_r = magnitude.sqrt();
+        let half_theta = phase / 2.0;
+
+        Expression::Complex(sqrt_r * half_theta.cos(), sqrt_r * half_theta.sin())
+    }
+
+    fn complex_abs(r: f64, i: f64) -> f64 {
+        (r * r + i * i).sqrt()
+    }
+
+    fn complex_exp(r: f64, i: f64) -> Expression {
+        let exp_real = r.exp();
+        Expression::Complex(exp_real * i.cos(), exp_real * i.sin())
+    }
+}
+
 impl Add for Expression {
     type Output = Result<Self, EvaluationError>;
+    
     fn add(self, rhs: Self) -> Self::Output {
-        match (&self, &rhs) {
-            (Expression::Value(left), Expression::Value(right)) => {
-                Ok(Expression::Value(left.clone().add(right.clone())?))
+        match (self, rhs) {
+            (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a + b)),
+            (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
+                Ok(Self::complex_add(a_r, a_i, b_r, b_i))
             }
-            _ => Ok(Expression::Add(Box::new(self), Box::new(rhs))),
+            (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
+                Ok(Self::complex_add(a, 0.0, b_r, b_i))
+            }
+            (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
+                Ok(Self::complex_add(a_r, a_i, b, 0.0))
+            }
+            (Expression::Vector(a), Expression::Vector(b)) => {
+                if a.len() != b.len() {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Vector addition: vectors must have the same dimension".to_string()
+                    ));
+                }
+
+                let result: Result<Vec<Expression>, _> = a
+                    .iter()
+                    .zip(b.iter())
+                    .map(|(x, y)| x.clone().add(y.clone()))
+                    .collect();
+
+                Ok(Expression::Vector(result?))
+            }
+            (Expression::Matrix(a_data, a_rows, a_cols), Expression::Matrix(b_data, b_rows, b_cols)) => {
+                if a_rows != b_rows || a_cols != b_cols {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Matrix addition: matrices must have the same dimensions".to_string()
+                    ));
+                }
+
+                let result: Result<Vec<Expression>, _> = a_data
+                    .iter()
+                    .zip(b_data.iter())
+                    .map(|(x, y)| x.clone().add(y.clone()))
+                    .collect();
+
+                Ok(Expression::Matrix(result?, a_rows, a_cols))
+            }
+            (left, right) => Ok(Expression::Add(Box::new(left), Box::new(right))),
         }
     }
 }
 
 impl Sub for Expression {
     type Output = Result<Self, EvaluationError>;
+    
     fn sub(self, rhs: Self) -> Self::Output {
-        match (&self, &rhs) {
-            (Expression::Value(left), Expression::Value(right)) => {
-                Ok(Expression::Value(left.clone().sub(right.clone())?))
+        match (self, rhs) {
+            (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a - b)),
+            (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
+                Ok(Self::complex_sub(a_r, a_i, b_r, b_i))
             }
-            _ => Ok(Expression::Sub(Box::new(self), Box::new(rhs))),
+            (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
+                Ok(Self::complex_sub(a, 0.0, b_r, b_i))
+            }
+            (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
+                Ok(Self::complex_sub(a_r, a_i, b, 0.0))
+            }
+            (Expression::Vector(a), Expression::Vector(b)) => {
+                if a.len() != b.len() {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Vector subtraction: vectors must have the same dimension".to_string()
+                    ));
+                }
+
+                let result: Result<Vec<Expression>, _> = a
+                    .iter()
+                    .zip(b.iter())
+                    .map(|(x, y)| x.clone().sub(y.clone()))
+                    .collect();
+
+                Ok(Expression::Vector(result?))
+            }
+            (Expression::Matrix(a_data, a_rows, a_cols), Expression::Matrix(b_data, b_rows, b_cols)) => {
+                if a_rows != b_rows || a_cols != b_cols {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Matrix subtraction: matrices must have the same dimensions".to_string()
+                    ));
+                }
+
+                let result: Result<Vec<Expression>, _> = a_data
+                    .iter()
+                    .zip(b_data.iter())
+                    .map(|(x, y)| x.clone().sub(y.clone()))
+                    .collect();
+
+                Ok(Expression::Matrix(result?, a_rows, a_cols))
+            }
+            (left, right) => Ok(Expression::Sub(Box::new(left), Box::new(right))),
         }
     }
 }
 
 impl Mul for Expression {
     type Output = Result<Self, EvaluationError>;
+    
     fn mul(self, rhs: Self) -> Self::Output {
-        match (&self, &rhs) {
-            (Expression::Value(left), Expression::Value(right)) => {
-                Ok(Expression::Value(left.clone().mul(right.clone())?))
+        match (self, rhs) {
+            (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a * b)),
+            (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
+                Ok(Self::complex_mul(a_r, a_i, b_r, b_i))
             }
-            _ => Ok(Expression::Mul(Box::new(self), Box::new(rhs))),
+            (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
+                Ok(Self::complex_mul(a, 0.0, b_r, b_i))
+            }
+            (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
+                Ok(Self::complex_mul(a_r, a_i, b, 0.0))
+            }
+
+            // Scalar * Vector
+            (Expression::Real(s), Expression::Vector(v)) | (Expression::Vector(v), Expression::Real(s)) => {
+                let result: Result<Vec<Expression>, _> = v
+                    .iter()
+                    .map(|x| x.clone().mul(Expression::Real(s)))
+                    .collect();
+                Ok(Expression::Vector(result?))
+            }
+            (Expression::Complex(r, i), Expression::Vector(v)) | (Expression::Vector(v), Expression::Complex(r, i)) => {
+                let result: Result<Vec<Expression>, _> = v
+                    .iter()
+                    .map(|x| x.clone().mul(Expression::Complex(r, i)))
+                    .collect();
+                Ok(Expression::Vector(result?))
+            }
+
+            // Scalar * Matrix
+            (Expression::Real(s), Expression::Matrix(data, rows, cols)) | (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
+                let result: Result<Vec<Expression>, _> = data
+                    .iter()
+                    .map(|x| x.clone().mul(Expression::Real(s)))
+                    .collect();
+                Ok(Expression::Matrix(result?, rows, cols))
+            }
+            (Expression::Complex(r, i), Expression::Matrix(data, rows, cols)) | (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
+                let result: Result<Vec<Expression>, _> = data
+                    .iter()
+                    .map(|x| x.clone().mul(Expression::Complex(r, i)))
+                    .collect();
+                Ok(Expression::Matrix(result?, rows, cols))
+            }
+
+            // Hadamard product (element-wise) for matrices
+            (Expression::Matrix(a_data, a_rows, a_cols), Expression::Matrix(b_data, b_rows, b_cols)) => {
+                if a_rows != b_rows || a_cols != b_cols {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Hadamard product: matrices must have the same dimensions".to_string()
+                    ));
+                }
+
+                let result: Result<Vec<Expression>, _> = a_data
+                    .iter()
+                    .zip(b_data.iter())
+                    .map(|(x, y)| x.clone().mul(y.clone()))
+                    .collect();
+
+                Ok(Expression::Matrix(result?, a_rows, a_cols))
+            }
+
+            // Matrix * Vector
+            (Expression::Matrix(data, rows, cols), Expression::Vector(v)) => {
+                if cols != v.len() {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Matrix-Vector multiplication: matrix columns must equal vector size".to_string()
+                    ));
+                }
+
+                let mut result = Vec::with_capacity(rows);
+
+                for i in 0..rows {
+                    let mut sum = Expression::Complex(0.0, 0.0);
+
+                    for k in 0..cols {
+                        let left_elem = &data[i * cols + k];
+                        let right_elem = &v[k];
+
+                        let product = left_elem.clone().mul(right_elem.clone())?;
+                        sum = sum.add(product)?;
+                    }
+
+                    result.push(sum);
+                }
+
+                Ok(Expression::Vector(result))
+            }
+
+            (left, right) => Ok(Expression::Mul(Box::new(left), Box::new(right))),
         }
     }
 }
 
 impl Expression {
     pub fn mat_mul(self, rhs: Self) -> Result<Self, EvaluationError> {
-        match (&self, &rhs) {
-            (Expression::Value(left), Expression::Value(right)) => {
-                Ok(Expression::Value(left.clone().mat_mul(right.clone())?))
+        match (self, rhs) {
+            (Expression::Matrix(a_data, a_rows, a_cols), Expression::Matrix(b_data, b_rows, b_cols)) => {
+                if a_cols != b_rows {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Matrix multiplication: left matrix columns must equal right matrix rows".to_string()
+                    ));
+                }
+
+                let mut result = Vec::with_capacity(a_rows * b_cols);
+
+                for i in 0..a_rows {
+                    for j in 0..b_cols {
+                        let mut sum = Expression::Complex(0.0, 0.0);
+
+                        for k in 0..a_cols {
+                            let left_elem = &a_data[i * a_cols + k];
+                            let right_elem = &b_data[k * b_cols + j];
+
+                            let product = left_elem.clone().mul(right_elem.clone())?;
+                            sum = sum.add(product)?;
+                        }
+
+                        result.push(sum);
+                    }
+                }
+
+                Ok(Expression::Matrix(result, a_rows, b_cols))
             }
-            _ => Ok(Expression::MatMul(Box::new(self), Box::new(rhs))),
+            (left, right) => Ok(Expression::MatMul(Box::new(left), Box::new(right))),
         }
     }
 }
 
 impl Div for Expression {
     type Output = Result<Self, EvaluationError>;
+    
     fn div(self, rhs: Self) -> Self::Output {
         if rhs.is_zero() {
             return Err(EvaluationError::DivisionByZero);
         }
 
-        match (&self, &rhs) {
-            (Expression::Value(left), Expression::Value(right)) => {
-                Ok(Expression::Value(left.clone().div(right.clone())?))
+        match (self, rhs) {
+            (Expression::Real(a), Expression::Real(b)) => {
+                if b == 0.0 {
+                    return Err(EvaluationError::DivisionByZero);
+                }
+                Ok(Expression::Real(a / b))
             }
-            _ => Ok(Expression::Div(Box::new(self), Box::new(rhs))),
+            (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
+                Self::complex_div(a_r, a_i, b_r, b_i)
+            }
+            (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
+                Self::complex_div(a, 0.0, b_r, b_i)
+            }
+            (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
+                if b == 0.0 {
+                    return Err(EvaluationError::DivisionByZero);
+                }
+                Self::complex_div(a_r, a_i, b, 0.0)
+            }
+            (Expression::Vector(v), Expression::Real(s)) => {
+                if s == 0.0 {
+                    return Err(EvaluationError::DivisionByZero);
+                }
+                let result: Result<Vec<Expression>, _> = v
+                    .iter()
+                    .map(|x| x.clone().div(Expression::Real(s)))
+                    .collect();
+                Ok(Expression::Vector(result?))
+            }
+            (Expression::Vector(v), Expression::Complex(r, i)) => {
+                if r.abs() < f64::EPSILON && i.abs() < f64::EPSILON {
+                    return Err(EvaluationError::DivisionByZero);
+                }
+                let result: Result<Vec<Expression>, _> = v
+                    .iter()
+                    .map(|x| x.clone().div(Expression::Complex(r, i)))
+                    .collect();
+                Ok(Expression::Vector(result?))
+            }
+            (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
+                if s == 0.0 {
+                    return Err(EvaluationError::DivisionByZero);
+                }
+                let result: Result<Vec<Expression>, _> = data
+                    .iter()
+                    .map(|x| x.clone().div(Expression::Real(s)))
+                    .collect();
+                Ok(Expression::Matrix(result?, rows, cols))
+            }
+            (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
+                if r.abs() < f64::EPSILON && i.abs() < f64::EPSILON {
+                    return Err(EvaluationError::DivisionByZero);
+                }
+                let result: Result<Vec<Expression>, _> = data
+                    .iter()
+                    .map(|x| x.clone().div(Expression::Complex(r, i)))
+                    .collect();
+                Ok(Expression::Matrix(result?, rows, cols))
+            }
+            (left, right) => Ok(Expression::Div(Box::new(left), Box::new(right))),
         }
     }
 }
 
 impl Rem for Expression {
     type Output = Result<Self, EvaluationError>;
+    
     fn rem(self, rhs: Self) -> Self::Output {
         if rhs.is_zero() {
             return Err(EvaluationError::InvalidOperation(
@@ -159,23 +532,38 @@ impl Rem for Expression {
             ));
         }
 
-        match (&self, &rhs) {
-            (Expression::Value(left), Expression::Value(right)) => {
-                Ok(Expression::Value(left.clone().rem(right.clone())?))
+        match (self, rhs) {
+            (Expression::Real(a), Expression::Real(b)) => {
+                if b == 0.0 {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Modulo by zero".to_string(),
+                    ));
+                }
+                Ok(Expression::Real(a % b))
             }
-            _ => Ok(Expression::Mod(Box::new(self), Box::new(rhs))),
+            (left, right) => Ok(Expression::Mod(Box::new(left), Box::new(right))),
         }
     }
 }
 
 impl Neg for Expression {
     type Output = Result<Self, EvaluationError>;
+    
     fn neg(self) -> Self::Output {
         match self {
-            Expression::Value(n) => Ok(Expression::Value(n.neg()?)),
+            Expression::Real(n) => Ok(Expression::Real(-n)),
+            Expression::Complex(r, i) => Ok(Expression::Complex(-r, -i)),
+            Expression::Vector(v) => {
+                let result: Result<Vec<Expression>, _> = v.into_iter().map(|x| x.neg()).collect();
+                Ok(Expression::Vector(result?))
+            }
+            Expression::Matrix(data, rows, cols) => {
+                let result: Result<Vec<Expression>, _> = data.into_iter().map(|x| x.neg()).collect();
+                Ok(Expression::Matrix(result?, rows, cols))
+            }
             // -(a + b) = (-a) + (-b) = -a - b
             Expression::Add(left, right) => {
-                Expression::Value(Value::Real(0.0)).sub(*left)?.sub(*right)
+                Expression::Real(0.0).sub(*left)?.sub(*right)
             }
             // -(a - b) = -a + b = b - a
             Expression::Sub(left, right) => (*right).sub(*left),
@@ -193,27 +581,76 @@ impl Neg for Expression {
 
 impl Expression {
     pub fn pow(self, rhs: Self) -> Result<Expression, EvaluationError> {
-        match (&self, &rhs) {
-            (Expression::Value(left), Expression::Value(right)) => {
-                Ok(Expression::Value(left.clone().pow(right.clone())?))
+        match (self, rhs) {
+            (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a.powf(b))),
+            (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
+                Ok(Self::complex_pow(a_r, a_i, b, 0.0))
             }
-            _ => Ok(Expression::Pow(Box::new(self), Box::new(rhs))),
+            (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
+                Ok(Self::complex_pow(a_r, a_i, b_r, b_i))
+            }
+            (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
+                Ok(Self::complex_pow(a, 0.0, b_r, b_i))
+            }
+            (Expression::Matrix(data, rows, cols), Expression::Real(b)) => {
+                // Check if matrix is square
+                if rows != cols {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Matrix must be square for exponentiation".to_string(),
+                    ));
+                }
+
+                let n = b as i32;
+
+                // Handle negative powers
+                if n < 0 {
+                    return Err(EvaluationError::InvalidOperation(
+                        "Negative powers not supported".to_string(),
+                    ));
+                }
+
+                // Handle power of 0 - return identity matrix
+                if n == 0 {
+                    let mut identity = Vec::with_capacity(rows * cols);
+                    for i in 0..rows {
+                        for j in 0..cols {
+                            if i == j {
+                                identity.push(Expression::Real(1.0));
+                            } else {
+                                identity.push(Expression::Real(0.0));
+                            }
+                        }
+                    }
+                    return Ok(Expression::Matrix(identity, rows, cols));
+                }
+
+                // Handle power of 1
+                if n == 1 {
+                    return Ok(Expression::Matrix(data, rows, cols));
+                }
+
+                // For powers > 1, use repeated multiplication
+                let mut result = Expression::Matrix(data.clone(), rows, cols);
+                for _ in 1..n {
+                    result = result.mat_mul(Expression::Matrix(data.clone(), rows, cols))?;
+                }
+
+                Ok(result)
+            }
+            (left, right) => Ok(Expression::Pow(Box::new(left), Box::new(right))),
         }
     }
 
     pub fn sqrt(&self) -> Result<Expression, EvaluationError> {
         match self {
-            Expression::Value(Value::Real(n)) => {
+            Expression::Real(n) => {
                 if *n < 0.0 {
-                    Ok(Expression::Value(Value::Complex(Complex::new(
-                        0.0,
-                        n.abs().sqrt(),
-                    ))))
+                    Ok(Expression::Complex(0.0, n.abs().sqrt()))
                 } else {
-                    Ok(Expression::Value(Value::Real(n.sqrt())))
+                    Ok(Expression::Real(n.sqrt()))
                 }
             }
-            Expression::Value(Value::Complex(c)) => Ok(Expression::Value(Value::Complex(c.sqrt()))),
+            Expression::Complex(r, i) => Ok(Self::complex_sqrt(*r, *i)),
             _ => Err(EvaluationError::InvalidOperation(
                 "Sqrt is not implemented for this type".to_string(),
             )),
@@ -222,8 +659,8 @@ impl Expression {
 
     pub fn abs(&self) -> Result<Expression, EvaluationError> {
         match self {
-            Expression::Value(Value::Real(n)) => Ok(Expression::Value(Value::Real(n.abs()))),
-            Expression::Value(Value::Complex(c)) => Ok(Expression::Value(Value::Real(c.abs()))),
+            Expression::Real(n) => Ok(Expression::Real(n.abs())),
+            Expression::Complex(r, i) => Ok(Expression::Real(Self::complex_abs(*r, *i))),
             _ => Err(EvaluationError::InvalidOperation(
                 "Abs is not implemented for this type".to_string(),
             )),
@@ -232,64 +669,12 @@ impl Expression {
 
     pub fn exp(&self) -> Result<Expression, EvaluationError> {
         match self {
-            Expression::Value(Value::Real(n)) => Ok(Expression::Value(Value::Real(n.exp()))),
-            Expression::Value(Value::Complex(c)) => Ok(Expression::Value(Value::Complex(c.exp()))),
+            Expression::Real(n) => Ok(Expression::Real(n.exp())),
+            Expression::Complex(r, i) => Ok(Self::complex_exp(*r, *i)),
             _ => Err(EvaluationError::InvalidOperation(
                 "Exp is not implemented for this type".to_string(),
             )),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Term {
-    coefficient: f64,
-    expression: Expression,
-}
-
-impl Term {
-    fn new(coefficient: f64, expression: Expression) -> Self {
-        Term {
-            coefficient,
-            expression,
-        }
-    }
-
-    fn constant(value: f64) -> Self {
-        Term {
-            coefficient: value,
-            expression: Expression::Value(Value::Real(1.0)),
-        }
-    }
-
-    fn to_expression(&self) -> Expression {
-        let coeff_abs = self.coefficient.abs();
-
-        if coeff_abs < f64::EPSILON {
-            return Expression::Value(Value::Real(0.0));
-        }
-
-        // Check if expression is just the constant 1.0
-        if matches!(self.expression, Expression::Value(Value::Real(n)) if (n - 1.0).abs() < f64::EPSILON)
-        {
-            return Expression::Value(Value::Real(self.coefficient));
-        }
-
-        if (self.coefficient - 1.0).abs() < f64::EPSILON {
-            self.expression.clone()
-        } else if (self.coefficient + 1.0).abs() < f64::EPSILON {
-            Expression::Neg(Box::new(self.expression.clone()))
-        } else {
-            Expression::Mul(
-                Box::new(Expression::Value(Value::Real(self.coefficient))),
-                Box::new(self.expression.clone()),
-            )
-        }
-    }
-
-    // Create a unique key for grouping like terms
-    fn key(&self) -> String {
-        format!("{}", self.expression)
     }
 }
 
@@ -304,40 +689,24 @@ impl Expression {
         scope: &HashMap<String, Expression>,
     ) -> Result<Expression, EvaluationError> {
         match self {
-            Expression::Value(Value::Real(_)) | Expression::Value(Value::Complex(_)) => {
-                Ok(self.clone())
-            }
+            Expression::Real(_) | Expression::Complex(_, _) => Ok(self.clone()),
 
-            Expression::Value(Value::Vector(vector)) => {
+            Expression::Vector(vector) => {
                 let mut evaluated_vector = Vec::new();
                 for element in vector.iter() {
                     let evaluated_element = element.evaluate_internal(context, scope)?.reduce()?;
                     evaluated_vector.push(evaluated_element);
                 }
-                let result = Vector::new(evaluated_vector);
-                match result {
-                    Ok(vector) => Ok(Expression::Value(Value::Vector(vector))),
-                    Err(e) => Err(EvaluationError::InvalidOperation(e)),
-                }
+                Ok(Expression::Vector(evaluated_vector))
             }
 
-            Expression::Value(Value::Matrix(matrix)) => {
+            Expression::Matrix(matrix, rows, cols) => {
                 let mut evaluated_matrix = Vec::new();
-                for row in 0..matrix.rows() {
-                    for col in 0..matrix.cols() {
-                        let evaluated_element = matrix
-                            .get(row, col)
-                            .unwrap()
-                            .evaluate_internal(context, scope)?
-                            .reduce()?;
-                        evaluated_matrix.push(evaluated_element);
-                    }
+                for element in matrix.iter() {
+                    let evaluated_element = element.evaluate_internal(context, scope)?.reduce()?;
+                    evaluated_matrix.push(evaluated_element);
                 }
-                let result = Matrix::new(evaluated_matrix, matrix.rows(), matrix.cols());
-                match result {
-                    Ok(matrix) => Ok(Expression::Value(Value::Matrix(matrix))),
-                    Err(e) => Err(EvaluationError::InvalidOperation(e)),
-                }
+                Ok(Expression::Matrix(evaluated_matrix, *rows, *cols))
             }
 
             Expression::Variable(name) => {
@@ -513,9 +882,9 @@ impl Expression {
                 Ok(terms)
             }
             Expression::Neg(inner) => inner.extract_terms(-sign),
-            Expression::Value(Value::Real(n)) => Ok(vec![Term::constant(sign * n)]),
-            Expression::Value(Value::Complex(c)) if c.is_real() => {
-                Ok(vec![Term::constant(sign * c.real)])
+            Expression::Real(n) => Ok(vec![Term::constant(sign * n)]),
+            Expression::Complex(r, i) if i.abs() < f64::EPSILON => {
+                Ok(vec![Term::constant(sign * r)])
             }
             Expression::Mul(..) => {
                 let (coeff, expr) = self.extract_coefficient();
@@ -536,7 +905,7 @@ impl Expression {
         self.collect_mul_parts(&mut coefficient, &mut non_constant_parts);
 
         if non_constant_parts.is_empty() {
-            (coefficient, Expression::Value(Value::Real(1.0)))
+            (coefficient, Expression::Real(1.0))
         } else if non_constant_parts.len() == 1 {
             (coefficient, non_constant_parts[0].clone())
         } else {
@@ -550,11 +919,11 @@ impl Expression {
 
     fn collect_mul_parts(&self, coefficient: &mut f64, parts: &mut Vec<Expression>) {
         match self {
-            Expression::Value(Value::Real(n)) => {
+            Expression::Real(n) => {
                 *coefficient *= n;
             }
-            Expression::Value(Value::Complex(c)) if c.is_real() => {
-                *coefficient *= c.real;
+            Expression::Complex(r, i) if i.abs() < f64::EPSILON => {
+                *coefficient *= r;
             }
             Expression::Mul(left, right) => {
                 left.collect_mul_parts(coefficient, parts);
@@ -587,7 +956,7 @@ impl Expression {
             .collect();
 
         if result_exprs.is_empty() {
-            return Ok(Expression::Value(Value::Real(0.0)));
+            return Ok(Expression::Real(0.0));
         }
 
         // Build the final expression with additions
@@ -597,5 +966,57 @@ impl Expression {
         }
 
         Ok(result)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Term {
+    coefficient: f64,
+    expression: Expression,
+}
+
+impl Term {
+    fn new(coefficient: f64, expression: Expression) -> Self {
+        Term {
+            coefficient,
+            expression,
+        }
+    }
+
+    fn constant(value: f64) -> Self {
+        Term {
+            coefficient: value,
+            expression: Expression::Real(1.0),
+        }
+    }
+
+    fn to_expression(&self) -> Expression {
+        let coeff_abs = self.coefficient.abs();
+
+        if coeff_abs < f64::EPSILON {
+            return Expression::Real(0.0);
+        }
+
+        // Check if expression is just the constant 1.0
+        if matches!(self.expression, Expression::Real(n) if (n - 1.0).abs() < f64::EPSILON)
+        {
+            return Expression::Real(self.coefficient);
+        }
+
+        if (self.coefficient - 1.0).abs() < f64::EPSILON {
+            self.expression.clone()
+        } else if (self.coefficient + 1.0).abs() < f64::EPSILON {
+            Expression::Neg(Box::new(self.expression.clone()))
+        } else {
+            Expression::Mul(
+                Box::new(Expression::Real(self.coefficient)),
+                Box::new(self.expression.clone()),
+            )
+        }
+    }
+
+    // Create a unique key for grouping like terms
+    fn key(&self) -> String {
+        format!("{}", self.expression)
     }
 }
