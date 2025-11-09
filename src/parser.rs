@@ -362,6 +362,11 @@ impl Parser {
             return Err(ParseError::InvalidMatrix("Empty matrix".to_string()));
         }
 
+        let row_length = rows[0].len();
+        if rows.iter().any(|r| r.len() != row_length) {
+            return Err(ParseError::InvalidMatrix("Rows are not all the same length".to_string()))
+        }
+
         Ok(Expression::Matrix(            
             rows.iter().flatten().cloned().collect(),
             rows.len(),
