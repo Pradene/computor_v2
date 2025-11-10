@@ -16,13 +16,13 @@ fn main() -> RustylineResult<()> {
             Ok(line) => {
                 if line.as_str() == "quit" {
                     break;
-                }
-                if line.trim().is_empty() {
+                } else if line.trim().is_empty() {
                     continue;
+                } else if line.as_str() == "table" {
+                    context.print_symbols();
+                } else {
+                    context.compute(line.as_str());
                 }
-
-                context.compute(line.as_str());
-
                 reader.add_history_entry(line.as_str())?;
             }
             Err(ReadlineError::Interrupted) => {

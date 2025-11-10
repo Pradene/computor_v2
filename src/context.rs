@@ -76,6 +76,25 @@ impl Context {
     pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
         self.symbols.get(name)
     }
+
+    pub fn print_symbols(&self) {
+        for (name, symbol) in self.symbols.iter() {
+            match symbol {
+                Symbol::Variable(variable) => println!("{} = {}", name, variable),
+                Symbol::Function(FunctionDefinition { params, body }) => {
+                    print!("{}", name);
+                    print!("(");
+                    for (i, param) in params.iter().enumerate() {
+                        if i > 0 {
+                            print!(", ");
+                        }
+                        print!("{}", param);
+                    }
+                    println!(") = {}", body);
+                }
+            }
+        }
+    }
 }
 
 impl Context {
