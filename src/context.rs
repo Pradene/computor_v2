@@ -59,7 +59,7 @@ impl Context {
         }
     }
 
-    pub fn compute(&mut self, line: &String) {
+    pub fn compute(&mut self, line: &str) {
         match Parser::parse(line) {
             Ok(statement) => match self.execute(statement) {
                 Ok(result) => println!("{}", result),
@@ -106,59 +106,10 @@ impl Context {
         right: &Expression,
     ) -> Result<EquationSolution, EvaluationError> {
         let expression = (left.clone()).sub(right.clone())?;
-        let expression = self.prepare_equation(&expression)?;
+        let expression = self.evaluate_expression(&expression)?;
 
         let equation = Equation::new(expression);
         equation.solve()
-    }
-
-    fn prepare_equation(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
-        match expr {
-            Expression::FunctionCall(_) => self.evaluate_expression(expr),
-            Expression::Add(left, right) => {
-                let left_prep = self.prepare_equation(left)?;
-                let right_prep = self.prepare_equation(right)?;
-                Ok(Expression::Add(Box::new(left_prep), Box::new(right_prep)))
-            }
-            Expression::Div(left, right) => {
-                let left_prep = self.prepare_equation(left)?;
-                let right_prep = self.prepare_equation(right)?;
-                Ok(Expression::Div(Box::new(left_prep), Box::new(right_prep)))
-            }
-            Expression::MatMul(left, right) => {
-                let left_prep = self.prepare_equation(left)?;
-                let right_prep = self.prepare_equation(right)?;
-                Ok(Expression::MatMul(
-                    Box::new(left_prep),
-                    Box::new(right_prep),
-                ))
-            }
-            Expression::Mul(left, right) => {
-                let left_prep = self.prepare_equation(left)?;
-                let right_prep = self.prepare_equation(right)?;
-                Ok(Expression::Mul(Box::new(left_prep), Box::new(right_prep)))
-            }
-            Expression::Mod(left, right) => {
-                let left_prep = self.prepare_equation(left)?;
-                let right_prep = self.prepare_equation(right)?;
-                Ok(Expression::Mod(Box::new(left_prep), Box::new(right_prep)))
-            }
-            Expression::Pow(left, right) => {
-                let left_prep = self.prepare_equation(left)?;
-                let right_prep = self.prepare_equation(right)?;
-                Ok(Expression::Pow(Box::new(left_prep), Box::new(right_prep)))
-            }
-            Expression::Sub(left, right) => {
-                let left_prep = self.prepare_equation(left)?;
-                let right_prep = self.prepare_equation(right)?;
-                Ok(Expression::Sub(Box::new(left_prep), Box::new(right_prep)))
-            }
-            Expression::Neg(inner) => {
-                let inner = self.prepare_equation(inner)?;
-                Ok(Expression::Neg(Box::new(inner)))
-            }
-            _ => Ok(expr.clone()),
-        }
     }
 
     fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {

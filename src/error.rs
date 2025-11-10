@@ -14,7 +14,11 @@ pub enum ParseError {
 pub enum EvaluationError {
     UndefinedVariable(String),
     UndefinedFunction(String),
-    WrongArgumentCount { expected: usize, got: usize },
+    WrongArgumentCount {
+        name: String,
+        expected: usize,
+        got: usize,
+    },
     DivisionByZero,
     InvalidOperation(String),
     UnsupportedOperation(String),
@@ -38,8 +42,12 @@ impl fmt::Display for EvaluationError {
         match self {
             EvaluationError::UndefinedVariable(name) => write!(f, "Undefined variable: {}", name),
             EvaluationError::UndefinedFunction(name) => write!(f, "Undefined function: {}", name),
-            EvaluationError::WrongArgumentCount { expected, got } => {
-                write!(f, "Expected {} arguments, got {}", expected, got)
+            EvaluationError::WrongArgumentCount {
+                name,
+                expected,
+                got,
+            } => {
+                write!(f, "{} expect {} arguments, got {}", name, expected, got)
             }
             EvaluationError::DivisionByZero => write!(f, "Division by zero"),
             EvaluationError::InvalidOperation(msg) => write!(f, "Invalid operation: {}", msg),

@@ -1,5 +1,4 @@
 use computor_v2::context::Context;
-use computor_v2::parser::Parser;
 
 use rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult};
 
@@ -22,9 +21,9 @@ fn main() -> RustylineResult<()> {
                     continue;
                 }
 
-                context.compute(&line);
+                context.compute(line.as_str());
 
-                reader.add_history_entry(&line)?;
+                reader.add_history_entry(line.as_str())?;
             }
             Err(ReadlineError::Interrupted) => {
                 eprintln!("Ctrl-C");

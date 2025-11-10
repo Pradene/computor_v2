@@ -36,8 +36,11 @@ impl fmt::Display for EquationSolution {
                 } else if solutions.len() == 1 {
                     write!(f, "{} = {}", variable, solutions[0])?;
                 } else {
-                    write!(f, "{} = {}\n", variable, solutions[0])?;
-                    write!(f, "{} = {}", variable, solutions[1])?;
+                    write!(
+                        f,
+                        "{} = {}\n{} = {}",
+                        variable, solutions[0], variable, solutions[1]
+                    )?;
                 }
             }
         };

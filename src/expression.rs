@@ -761,6 +761,7 @@ impl Expression {
                     Some(Symbol::Function(fun)) => {
                         if fc.args.len() != fun.params.len() {
                             return Err(EvaluationError::WrongArgumentCount {
+                                name: fc.name.clone(),
                                 expected: fun.params.len(),
                                 got: fc.args.len(),
                             });
