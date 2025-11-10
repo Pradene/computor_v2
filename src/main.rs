@@ -5,10 +5,11 @@ use rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult}
 
 fn main() -> RustylineResult<()> {
     let config = Config::builder().history_ignore_dups(true)?.build();
-    let history_file = "history.txt";
-
     let mut reader = Editor::<(), _>::with_config(config)?;
+
+    let history_file = "history.txt";
     let _ = reader.load_history(history_file);
+
     let mut context = Context::new();
 
     loop {
@@ -21,21 +22,9 @@ fn main() -> RustylineResult<()> {
                     continue;
                 }
 
-                match Parser::parse(&line) {
-                    Ok(statement) => match context.execute(statement) {
-                        Ok(result) => println!("{}", result),
-                        Err(e) => {
-                            eprintln!("{}", e);
-                            continue;
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("Parse error: {}", e);
-                        continue;
-                    }
-                }
+                context.compute(&line);
 
-                reader.add_history_entry(line.as_str())?;
+                reader.add_history_entry(&line)?;
             }
             Err(ReadlineError::Interrupted) => {
                 eprintln!("Ctrl-C");

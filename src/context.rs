@@ -5,6 +5,7 @@ use std::ops::Sub;
 use crate::equation::{Equation, EquationSolution};
 use crate::error::EvaluationError;
 use crate::expression::Expression;
+use crate::parser::Parser;
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -58,7 +59,27 @@ impl Context {
         }
     }
 
-    pub fn execute(&mut self, statement: Statement) -> Result<StatementResult, EvaluationError> {
+    pub fn compute(&mut self, line: &String) {
+        match Parser::parse(line) {
+            Ok(statement) => match self.execute(statement) {
+                Ok(result) => println!("{}", result),
+                Err(e) => {
+                    eprintln!("{}", e);
+                }
+            },
+            Err(e) => {
+                eprintln!("Parse error: {}", e);
+            }
+        }
+    }
+
+    pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
+        self.symbols.get(name)
+    }
+}
+
+impl Context {
+    fn execute(&mut self, statement: Statement) -> Result<StatementResult, EvaluationError> {
         match statement {
             Statement::Assignment { name, value } => {
                 let result = self.assign(name, value)?;
@@ -75,11 +96,11 @@ impl Context {
         }
     }
 
-    pub fn evaluate_expression(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
+    fn evaluate_expression(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
         expr.evaluate(self)?.reduce()
     }
 
-    pub fn evaluate_equation(
+    fn evaluate_equation(
         &self,
         left: &Expression,
         right: &Expression,
@@ -140,11 +161,7 @@ impl Context {
         }
     }
 
-    pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.symbols.get(name)
-    }
-
-    pub fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {
+    fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {
         self.symbols.insert(name, symbol.clone());
         let expr = match symbol {
             Symbol::Variable(expr) => expr,
