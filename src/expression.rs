@@ -254,19 +254,16 @@ impl Add for Expression {
 
                 Ok(Expression::Vector(result?))
             }
-            (
-                Expression::Matrix(a_data, a_rows, a_cols),
-                Expression::Matrix(b_data, b_rows, b_cols),
-            ) => {
+            (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
                         "Matrix addition: matrices must have the same dimensions".to_string(),
                     ));
                 }
 
-                let result: Result<Vec<Expression>, _> = a_data
+                let result: Result<Vec<Expression>, _> = a
                     .iter()
-                    .zip(b_data.iter())
+                    .zip(b.iter())
                     .map(|(x, y)| x.clone().add(y.clone()))
                     .collect();
 
@@ -307,19 +304,16 @@ impl Sub for Expression {
 
                 Ok(Expression::Vector(result?))
             }
-            (
-                Expression::Matrix(a_data, a_rows, a_cols),
-                Expression::Matrix(b_data, b_rows, b_cols),
-            ) => {
+            (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
                         "Matrix subtraction: matrices must have the same dimensions".to_string(),
                     ));
                 }
 
-                let result: Result<Vec<Expression>, _> = a_data
+                let result: Result<Vec<Expression>, _> = a
                     .iter()
-                    .zip(b_data.iter())
+                    .zip(b.iter())
                     .map(|(x, y)| x.clone().sub(y.clone()))
                     .collect();
 
@@ -383,19 +377,16 @@ impl Mul for Expression {
             }
 
             // Hadamard product (element-wise) for matrices
-            (
-                Expression::Matrix(a_data, a_rows, a_cols),
-                Expression::Matrix(b_data, b_rows, b_cols),
-            ) => {
+            (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
                         "Hadamard product: matrices must have the same dimensions".to_string(),
                     ));
                 }
 
-                let result: Result<Vec<Expression>, _> = a_data
+                let result: Result<Vec<Expression>, _> = a
                     .iter()
-                    .zip(b_data.iter())
+                    .zip(b.iter())
                     .map(|(x, y)| x.clone().mul(y.clone()))
                     .collect();
 
@@ -403,8 +394,8 @@ impl Mul for Expression {
             }
 
             // Matrix * Vector
-            (Expression::Matrix(data, rows, cols), Expression::Vector(v)) => {
-                if cols != v.len() {
+            (Expression::Matrix(a, rows, cols), Expression::Vector(b)) => {
+                if cols != b.len() {
                     return Err(EvaluationError::InvalidOperation(
                         "Matrix-Vector multiplication: matrix columns must equal vector size"
                             .to_string(),
@@ -415,16 +406,16 @@ impl Mul for Expression {
 
                 for i in 0..rows {
                     let mut sum = Expression::Complex(0.0, 0.0);
+                    let row_start = i * cols;
 
                     for k in 0..cols {
-                        let left_elem = &data[i * cols + k];
-                        let right_elem = &v[k];
-
-                        let product = left_elem.clone().mul(right_elem.clone())?;
+                        let left = a[row_start + k].clone();
+                        let right = b[k].clone();
+                        let product = left.mul(right)?;
                         sum = sum.add(product)?;
                     }
 
-                    result.push(sum);
+                    result[i] = sum;
                 }
 
                 Ok(Expression::Vector(result))
@@ -438,10 +429,7 @@ impl Mul for Expression {
 impl Expression {
     pub fn mat_mul(self, rhs: Self) -> Result<Self, EvaluationError> {
         match (self, rhs) {
-            (
-                Expression::Matrix(a_data, a_rows, a_cols),
-                Expression::Matrix(b_data, b_rows, b_cols),
-            ) => {
+            (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_cols != b_rows {
                     return Err(EvaluationError::InvalidOperation(
                         "Matrix multiplication: left matrix columns must equal right matrix rows"
@@ -456,14 +444,14 @@ impl Expression {
                         let mut sum = Expression::Complex(0.0, 0.0);
 
                         for k in 0..a_cols {
-                            let left_elem = &a_data[i * a_cols + k];
-                            let right_elem = &b_data[k * b_cols + j];
+                            let left = a[i * a_cols + k].clone();
+                            let right = b[k * b_cols + j].clone();
 
-                            let product = left_elem.clone().mul(right_elem.clone())?;
+                            let product = left.mul(right)?;
                             sum = sum.add(product)?;
                         }
 
-                        result.push(sum);
+                        result[i * b_cols + j] = sum;
                     }
                 }
 
