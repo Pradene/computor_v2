@@ -41,7 +41,11 @@ impl fmt::Display for Expression {
                 write!(f, "{}", n)?;
             }
             Expression::Complex(real, imag) => {
-                write!(f, "{} + {}i", real, imag)?;
+                if *imag >= 0.0 {
+                    write!(f, "{} + {}i", real, imag)?;
+                } else {
+                    write!(f, "{} - {}i", real, -imag)?;
+                }
             }
             Expression::Vector(data) => {
                 write!(f, "[")?;
@@ -571,8 +575,13 @@ impl Neg for Expression {
 
     fn neg(self) -> Self::Output {
         match self {
-            Expression::Real(n) => Ok(Expression::Real(-n)),
-            Expression::Complex(r, i) => Ok(Expression::Complex(-r, -i)),
+            Expression::Real(n) if n == 0.0 => Ok(Expression::Real(0.0)),
+            Expression::Real(n) => Ok(Expression::Neg(Box::new(Expression::Real(n)))),
+
+            Expression::Complex(r, i) if r.abs() < f64::EPSILON && i.abs() < f64::EPSILON => {
+                Ok(Expression::Complex(0.0, 0.0))
+            }
+            Expression::Complex(r, i) => Ok(Expression::Neg(Box::new(Expression::Complex(r, i)))),
             Expression::Vector(v) => {
                 let result: Result<Vec<Expression>, _> = v.into_iter().map(|x| x.neg()).collect();
                 Ok(Expression::Vector(result?))
@@ -969,21 +978,44 @@ impl Expression {
                 .or_insert(term);
         }
 
-        // Filter out zero coefficients and convert to expressions
-        let mut result_exprs: Vec<Expression> = combined
-            .into_values()
-            .filter(|term| term.coefficient.abs() >= f64::EPSILON)
-            .map(|term| term.to_expression())
-            .collect();
+        let mut positive_terms: Vec<Term> = Vec::new();
+        let mut negative_terms: Vec<Term> = Vec::new();
 
-        if result_exprs.is_empty() {
+        for term in combined.into_values() {
+            if term.coefficient.abs() < f64::EPSILON {
+                continue; // Skip zero terms
+            }
+
+            if term.coefficient > 0.0 {
+                positive_terms.push(term);
+            } else {
+                // Store as positive coefficient, we'll subtract later
+                negative_terms.push(Term::new(-term.coefficient, term.expression));
+            }
+        }
+
+        if positive_terms.is_empty() && negative_terms.is_empty() {
             return Ok(Expression::Real(0.0));
         }
 
-        // Build the final expression with additions
-        let mut result = result_exprs.remove(0);
-        for expr in result_exprs {
-            result = Expression::Add(Box::new(result), Box::new(expr));
+        // Build expression starting with positive terms (or first negative if no positive)
+        let mut result = if !positive_terms.is_empty() {
+            let mut pos_iter = positive_terms.into_iter();
+            let mut result = pos_iter.next().unwrap().to_expression();
+
+            for term in pos_iter {
+                result = Expression::Add(Box::new(result), Box::new(term.to_expression()));
+            }
+            result
+        } else {
+            // All terms are negative, start with negation of first term
+            let first = negative_terms.remove(0);
+            Expression::Neg(Box::new(first.to_expression()))
+        };
+
+        // Subtract all negative terms
+        for term in negative_terms {
+            result = Expression::Sub(Box::new(result), Box::new(term.to_expression()));
         }
 
         Ok(result)
@@ -1023,15 +1055,24 @@ impl Term {
             return Expression::Real(self.coefficient);
         }
 
-        if (self.coefficient - 1.0).abs() < f64::EPSILON {
+        let abs_coeff = self.coefficient.abs();
+        let is_negative = self.coefficient < 0.0;
+
+        let base_expr = if (abs_coeff - 1.0).abs() < f64::EPSILON {
+            // Coefficient is ±1, just return the expression (or its negation)
             self.expression.clone()
-        } else if (self.coefficient + 1.0).abs() < f64::EPSILON {
-            Expression::Neg(Box::new(self.expression.clone()))
         } else {
+            // Coefficient is not ±1, create multiplication with absolute value
             Expression::Mul(
-                Box::new(Expression::Real(self.coefficient)),
+                Box::new(Expression::Real(abs_coeff)),
                 Box::new(self.expression.clone()),
             )
+        };
+
+        if is_negative {
+            Expression::Neg(Box::new(base_expr))
+        } else {
+            base_expr
         }
     }
 
