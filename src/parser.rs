@@ -35,7 +35,7 @@ impl Parser {
                     Ok(Statement::Query { expression })
                 } else {
                     let left = Self::parse_expression_from_tokens(left_tokens)?;
-                    let right = Self::parse_expression_from_tokens(right_tokens)?;
+                    let right = Self::parse_expression_from_tokens(&right_tokens[..right_tokens.len() - 1])?;
                     Ok(Statement::Equation { left, right })
                 }
             } else {
@@ -132,7 +132,7 @@ impl Parser {
         }
 
         // Check if we ended expecting an identifier (trailing comma)
-        if expect_identifier {
+        if expect_identifier == true && params.is_empty() == false {
             return Err(ParseError::InvalidSyntax(
                 "Trailing comma in parameter list".to_string(),
             ));

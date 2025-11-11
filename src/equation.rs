@@ -108,8 +108,8 @@ impl Equation {
     fn solve_constant_equation(&self) -> EquationSolution {
         // Check if the constant expression is zero
         let is_zero = match &self.expression {
-            Expression::Real(n) => n.abs() < f64::EPSILON,
-            Expression::Complex(r, i) => r.abs() < f64::EPSILON && i.abs() < f64::EPSILON,
+            Expression::Real(n) => n.abs() == 0.0,
+            Expression::Complex(r, i) => r.abs() == 0.0 && i.abs() == 0.0,
             _ => false,
         };
 
@@ -123,7 +123,7 @@ impl Equation {
     fn solve_degree_0(&self, coefficients: &HashMap<i32, f64>) -> EquationSolution {
         let c = coefficients.get(&0).copied().unwrap_or(0.0);
 
-        if c.abs() < f64::EPSILON {
+        if c.abs() == 0.0 {
             // 0 = 0, infinite solutions
             EquationSolution::Infinite
         } else {
@@ -142,7 +142,7 @@ impl Equation {
         let a = coefficients.get(&1).copied().unwrap_or(0.0);
         let b = coefficients.get(&0).copied().unwrap_or(0.0);
 
-        if a.abs() < f64::EPSILON {
+        if a.abs() == 0.0 {
             return self.solve_degree_0(coefficients);
         }
 
@@ -163,7 +163,7 @@ impl Equation {
         let b = coefficients.get(&1).copied().unwrap_or(0.0);
         let c = coefficients.get(&0).copied().unwrap_or(0.0);
 
-        if a.abs() < f64::EPSILON {
+        if a.abs() == 0.0 {
             return self.solve_degree_1(variable, coefficients);
         }
 
@@ -179,7 +179,7 @@ impl Equation {
                 variable,
                 solutions: vec![Expression::Real(x1), Expression::Real(x2)],
             }
-        } else if discriminant.abs() < f64::EPSILON {
+        } else if discriminant.abs() == 0.0 {
             // One real solution (double root)
             let x = -b / (2.0 * a);
             EquationSolution::Finite {
@@ -258,7 +258,7 @@ impl Equation {
             Expression::Real(n) => {
                 *coefficients.entry(0).or_insert(0.0) += sign * n;
             }
-            Expression::Complex(r, i) if i.abs() < f64::EPSILON => {
+            Expression::Complex(r, i) if i.abs() == 0.0 => {
                 *coefficients.entry(0).or_insert(0.0) += sign * r;
             }
             Expression::Variable(name) if name == variable => {
@@ -320,7 +320,7 @@ impl Equation {
     fn extract_term(expr: &Expression, variable: &str) -> Result<(f64, i32), EvaluationError> {
         match expr {
             Expression::Real(n) => Ok((*n, 0)),
-            Expression::Complex(r, i) if i.abs() < f64::EPSILON => Ok((*r, 0)),
+            Expression::Complex(r, i) if i.abs() == 0.0 => Ok((*r, 0)),
             Expression::Variable(name) if name == variable => Ok((1.0, 1)),
             Expression::Mul(left, right) => {
                 let (left_coeff, left_degree) = Self::extract_term(left, variable)?;
