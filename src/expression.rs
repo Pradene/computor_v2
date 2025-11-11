@@ -387,7 +387,7 @@ impl Mul for Expression {
                 let result: Result<Vec<Expression>, _> = a
                     .iter()
                     .zip(b.iter())
-                    .map(|(x, y)| x.clone().mul(y.clone()))
+                    .map(|(x, y)| x.clone().mul(y.clone())?.reduce())
                     .collect();
 
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
@@ -415,7 +415,7 @@ impl Mul for Expression {
                         sum = sum.add(product)?;
                     }
 
-                    result.push(sum);
+                    result.push(sum.reduce()?);
                 }
 
                 Ok(Expression::Vector(result))
@@ -705,7 +705,14 @@ impl Expression {
         scope: &HashMap<String, Expression>,
     ) -> Result<Expression, EvaluationError> {
         match self {
-            Expression::Real(_) | Expression::Complex(_, _) => Ok(self.clone()),
+            Expression::Real(_) => Ok(self.clone()),
+            Expression::Complex(real, imag) => {
+                if imag.abs() < f64::EPSILON {
+                    Ok(Expression::Real(*real))
+                } else {
+                    Ok(self.clone())
+                }
+            }
 
             Expression::Vector(vector) => {
                 let mut evaluated_vector = Vec::new();
@@ -793,7 +800,14 @@ impl Expression {
                 }
             }
 
-            Expression::Paren(inner) => inner.evaluate_internal(context, scope)?.reduce(),
+            Expression::Paren(inner) => {
+                let inner = inner.evaluate_internal(context, scope)?.reduce()?; 
+
+                match inner {
+                    Expression::Real(_) | Expression::Complex(_, _) => Ok(inner),
+                    _ => Ok(Expression::Paren(Box::new(inner)))
+                }
+            }
 
             Expression::Add(left, right) => {
                 let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
@@ -851,6 +865,13 @@ impl Expression {
 
     fn collect_terms(&self) -> Result<Expression, EvaluationError> {
         match self {
+            Expression::Complex(real, imag) => {
+                if imag.abs() < f64::EPSILON {
+                    Ok(Expression::Real(*real))
+                } else {
+                    Ok(self.clone())
+                }
+            }
             Expression::Add(..) | Expression::Sub(..) => {
                 let terms = self.extract_terms(1.0)?;
                 self.combine_like_terms(terms)
