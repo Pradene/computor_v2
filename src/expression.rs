@@ -415,7 +415,7 @@ impl Mul for Expression {
                         sum = sum.add(product)?;
                     }
 
-                    result[i] = sum;
+                    result.push(sum);
                 }
 
                 Ok(Expression::Vector(result))
@@ -448,10 +448,10 @@ impl Expression {
                             let right = b[k * b_cols + j].clone();
 
                             let product = left.mul(right)?;
-                            sum = sum.add(product)?;
+                            sum = sum.add(product)?.reduce()?;
                         }
 
-                        result[i * b_cols + j] = sum;
+                        result.push(sum);
                     }
                 }
 

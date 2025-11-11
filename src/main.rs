@@ -19,7 +19,7 @@ fn main() -> RustylineResult<()> {
                 } else if line.trim().is_empty() {
                     continue;
                 } else if line.as_str() == "table" {
-                    context.print_symbols();
+                    context.print_table();
                 } else {
                     context.compute(line.as_str());
                 }

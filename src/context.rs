@@ -77,7 +77,7 @@ impl Context {
         self.symbols.get(name)
     }
 
-    pub fn print_symbols(&self) {
+    pub fn print_table(&self) {
         for (name, symbol) in self.symbols.iter() {
             match symbol {
                 Symbol::Variable(variable) => println!("{} = {}", name, variable),
