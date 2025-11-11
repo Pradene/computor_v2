@@ -801,11 +801,11 @@ impl Expression {
             }
 
             Expression::Paren(inner) => {
-                let inner = inner.evaluate_internal(context, scope)?.reduce()?; 
+                let inner = inner.evaluate_internal(context, scope)?.reduce()?;
 
                 match inner {
                     Expression::Real(_) | Expression::Complex(_, _) => Ok(inner),
-                    _ => Ok(Expression::Paren(Box::new(inner)))
+                    _ => Ok(Expression::Paren(Box::new(inner))),
                 }
             }
 

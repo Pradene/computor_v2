@@ -21,7 +21,14 @@ impl Parser {
             let left_tokens = &tokens[..eq_pos];
             let right_tokens = &tokens[eq_pos + 1..tokens.len() - 1]; // Exclude EOF
 
-            // Check for query pattern (... = ... ?)
+            // Check is right side is empty
+            if right_tokens.is_empty() {
+                return Err(ParseError::InvalidSyntax(
+                    "Expected expression after '='".to_string(),
+                ));
+            }
+
+            // Look for (... = ... ?)
             if right_tokens.iter().last() == Some(&Token::Question) {
                 if right_tokens.len() == 1 {
                     let expression = Self::parse_expression_from_tokens(left_tokens)?;
@@ -56,30 +63,44 @@ impl Parser {
             ));
         }
 
-        let name = match &left_tokens[0] {
-            Token::Identifier(name) => Ok(name.clone()),
-            _ => Err(ParseError::InvalidSyntax(
-                "Expected variable name".to_string(),
-            )),
-        }?;
+        // Check if this is a function definition: must have parentheses
+        let is_function_definition = left_tokens.len() >= 3
+            && left_tokens[1] == Token::LeftParen
+            && left_tokens.last() == Some(&Token::RightParen);
 
-        match left_tokens.len() {
-            1 => {
-                // Simple assignment: x = ...
-                let expression = Self::parse_expression_from_tokens(right_tokens)?;
-                Ok(Statement::Assignment {
-                    name,
-                    value: Symbol::Variable(expression),
-                })
-            }
-            _ => {
-                // Function definition: f(params...) = ...
-                let params = Self::parse_function_parameters(left_tokens)?;
-                let body = Self::parse_expression_from_tokens(right_tokens)?;
+        if is_function_definition {
+            // Function definition: f(params...) = ...
+            let name = match &left_tokens[0] {
+                Token::Identifier(name) => Ok(name.clone()),
+                _ => Err(ParseError::InvalidSyntax(
+                    "Expected function name".to_string(),
+                )),
+            }?;
 
-                let value = Symbol::Function(FunctionDefinition { params, body });
-                Ok(Statement::Assignment { name, value })
-            }
+            let params = Self::parse_function_parameters(left_tokens)?;
+            let body = Self::parse_expression_from_tokens(right_tokens)?;
+
+            let value = Symbol::Function(FunctionDefinition { params, body });
+            Ok(Statement::Assignment { name, value })
+        } else if left_tokens.len() == 1 {
+            // Simple assignment: x = ...
+            let name = match &left_tokens[0] {
+                Token::Identifier(name) => Ok(name.clone()),
+                _ => Err(ParseError::InvalidSyntax(
+                    "Expected variable name".to_string(),
+                )),
+            }?;
+
+            let expression = Self::parse_expression_from_tokens(right_tokens)?;
+            Ok(Statement::Assignment {
+                name,
+                value: Symbol::Variable(expression),
+            })
+        } else {
+            // Invalid: can't assign to expressions like a*b
+            Err(ParseError::InvalidSyntax(
+                "Left side of assignment must be a variable or function".to_string(),
+            ))
         }
     }
 
