@@ -77,7 +77,7 @@ impl Parser {
                 )),
             }?;
 
-            let params = Self::parse_function_parameters(left_tokens)?;
+            let params = Self::parse_function_parameters(&left_tokens[2..left_tokens.len() - 1])?;
             let body = Self::parse_expression_from_tokens(right_tokens)?;
 
             let value = Symbol::Function(FunctionDefinition { params, body });
@@ -105,38 +105,40 @@ impl Parser {
     }
 
     fn parse_function_parameters(tokens: &[Token]) -> Result<Vec<String>, ParseError> {
-        if tokens.len() < 3 {
-            return Err(ParseError::InvalidSyntax(
-                "Invalid function definition".to_string(),
-            ));
-        }
-
-        if tokens[1] != Token::LeftParen {
-            return Err(ParseError::InvalidSyntax(
-                "Expected '(' after function name".to_string(),
-            ));
-        }
-
-        // Check for closing parenthesis
-        if tokens.iter().last() != Some(&Token::RightParen) {
-            return Err(ParseError::InvalidSyntax(
-                "Expected ')' at the end of function parameters".to_string(),
-            ));
-        }
-
-        // Extract parameters between parentheses
-        let param_tokens = &tokens[2..tokens.len() - 1];
         let mut params = Vec::new();
+        let mut expect_identifier = true; // Start expecting an identifier
 
-        for token in param_tokens {
+        for token in tokens {
             match token {
-                Token::Identifier(param) => params.push(param.clone()),
-                Token::Comma => {} // Skip commas
+                Token::Identifier(param) => {
+                    if !expect_identifier {
+                        return Err(ParseError::InvalidSyntax(
+                            "Unexpected parameter, expected comma".to_string(),
+                        ));
+                    }
+                    params.push(param.clone());
+                    expect_identifier = false; // After identifier, expect comma
+                }
+                Token::Comma => {
+                    if expect_identifier {
+                        return Err(ParseError::InvalidSyntax(
+                            "Unexpected comma, expected parameter".to_string(),
+                        ));
+                    }
+                    expect_identifier = true; // After comma, expect identifier
+                }
                 _ => return Err(ParseError::InvalidSyntax("Invalid parameter".to_string())),
             }
         }
 
-        Ok(params)
+        // Check if we ended expecting an identifier (trailing comma)
+        if expect_identifier {
+            return Err(ParseError::InvalidSyntax(
+                "Trailing comma in parameter list".to_string(),
+            ));
+        }
+
+    Ok(params)
     }
 
     fn parse_expression_from_tokens(tokens: &[Token]) -> Result<Expression, ParseError> {
