@@ -21,7 +21,10 @@ fn main() -> RustylineResult<()> {
                 } else if line.as_str() == "table" {
                     context.print_table();
                 } else {
-                    context.compute(line.as_str());
+                    match context.compute(line.as_str()) {
+                        Ok(result) => println!("{}", result),
+                        Err(e) => eprintln!("{}", e),
+                    }
                 }
                 reader.add_history_entry(line.as_str())?;
             }

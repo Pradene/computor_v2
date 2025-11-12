@@ -1,4 +1,5 @@
 use std::fmt;
+use std::error;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -9,6 +10,21 @@ pub enum ParseError {
     InvalidMatrix(String),
     InvalidVector(String),
 }
+
+impl error::Error for ParseError {}
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParseError::InvalidSyntax(msg) => write!(f, "Invalid syntax: {}", msg),
+            ParseError::UnexpectedToken(token) => write!(f, "Unexpected token: {}", token),
+            ParseError::UnexpectedEof => write!(f, "Unexpected end of input"),
+            ParseError::InvalidNumber(num) => write!(f, "Invalid number: {}", num),
+            ParseError::InvalidMatrix(msg) => write!(f, "Invalid matrix: {}", msg),
+            ParseError::InvalidVector(msg) => write!(f, "Invalid vector: {}", msg),
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub enum EvaluationError {
@@ -24,19 +40,7 @@ pub enum EvaluationError {
     UnsupportedOperation(String),
 }
 
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ParseError::InvalidSyntax(msg) => write!(f, "Invalid syntax: {}", msg),
-            ParseError::UnexpectedToken(token) => write!(f, "Unexpected token: {}", token),
-            ParseError::UnexpectedEof => write!(f, "Unexpected end of input"),
-            ParseError::InvalidNumber(num) => write!(f, "Invalid number: {}", num),
-            ParseError::InvalidMatrix(msg) => write!(f, "Invalid matrix: {}", msg),
-            ParseError::InvalidVector(msg) => write!(f, "Invalid vector: {}", msg),
-        }
-    }
-}
-
+impl error::Error for EvaluationError {}
 impl fmt::Display for EvaluationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -58,5 +62,19 @@ impl fmt::Display for EvaluationError {
     }
 }
 
-impl std::error::Error for ParseError {}
-impl std::error::Error for EvaluationError {}
+
+#[derive(Debug)]
+pub enum ComputorError {
+    Parsing(String),
+    Evaluation(EvaluationError),
+}
+
+impl error::Error for ComputorError {}
+impl fmt::Display for ComputorError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ComputorError::Evaluation(e) => write!(f, "{}", e),
+            ComputorError::Parsing(e) => write!(f, "{}", e),
+        }
+    }
+}
