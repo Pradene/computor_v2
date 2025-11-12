@@ -60,9 +60,10 @@ impl Context {
     }
 
     pub fn compute(&mut self, line: &str) -> Result<StatementResult, ComputorError> {
-        let statement = Parser::parse(line)
-            .map_err(|e| ComputorError::Parsing(e.to_string()))?;
-        let result = self.execute(statement).map_err(|e| ComputorError::Evaluation(e))?;
+        let statement = Parser::parse(line).map_err(|e| ComputorError::Parsing(e.to_string()))?;
+        let result = self
+            .execute(statement)
+            .map_err(|e| ComputorError::Evaluation(e))?;
 
         Ok(result)
     }

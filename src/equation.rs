@@ -191,6 +191,10 @@ impl Equation {
             let real = -b / (2.0 * a);
             let imag = (-discriminant).sqrt() / (2.0 * a);
 
+            // Normalize the real part to avoid -0.0
+            let real = if real.abs() == 0.0 { 0.0 } else { real };
+            let imag = if imag.abs() == 0.0 { 0.0 } else { imag };
+
             EquationSolution::Finite {
                 variable,
                 solutions: vec![

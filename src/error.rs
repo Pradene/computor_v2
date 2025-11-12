@@ -1,5 +1,5 @@
-use std::fmt;
 use std::error;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -24,7 +24,6 @@ impl fmt::Display for ParseError {
         }
     }
 }
-
 
 #[derive(Debug)]
 pub enum EvaluationError {
@@ -61,7 +60,6 @@ impl fmt::Display for EvaluationError {
         }
     }
 }
-
 
 #[derive(Debug)]
 pub enum ComputorError {
