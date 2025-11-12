@@ -1,4 +1,4 @@
-use crate::context::Statement;
+use crate::context::{Statement, Variable};
 use crate::tokenizer::{Token, Tokenizer};
 
 use crate::context::{FunctionDefinition, Symbol};
@@ -9,7 +9,6 @@ pub struct Parser;
 
 impl Parser {
     pub fn parse(line: &str) -> Result<Statement, ParseError> {
-        let line = line.to_lowercase();
         let tokens = Tokenizer::tokenize(&line)?;
 
         if tokens.is_empty() {
@@ -81,7 +80,7 @@ impl Parser {
             let params = Self::parse_function_parameters(&left_tokens[2..left_tokens.len() - 1])?;
             let body = Self::parse_expression_from_tokens(right_tokens)?;
 
-            let value = Symbol::Function(FunctionDefinition { params, body });
+            let value = Symbol::Function(FunctionDefinition { name: name.clone(), params, body });
             Ok(Statement::Assignment { name, value })
         } else if left_tokens.len() == 1 {
             // Simple assignment: x = ...
@@ -94,8 +93,8 @@ impl Parser {
 
             let expression = Self::parse_expression_from_tokens(right_tokens)?;
             Ok(Statement::Assignment {
-                name,
-                value: Symbol::Variable(expression),
+                name: name.clone(),
+                value: Symbol::Variable(Variable { name, expression }),
             })
         } else {
             // Invalid: can't assign to expressions like a*b
@@ -316,7 +315,7 @@ impl Parser {
         pos: &mut usize,
     ) -> Result<Expression, ParseError> {
         *pos += 1; // consume '('
-        let expr = Self::parse_addition(tokens, pos)?;
+        let expression = Self::parse_addition(tokens, pos)?;
 
         if *pos >= tokens.len() || tokens[*pos] != Token::RightParen {
             return Err(ParseError::InvalidSyntax(
@@ -325,7 +324,7 @@ impl Parser {
         }
         *pos += 1; // consume ')'
 
-        Ok(Expression::Paren(Box::new(expr)))
+        Ok(Expression::Paren(Box::new(expression)))
     }
 
     fn parse_bracket(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
@@ -400,8 +399,8 @@ impl Parser {
 
         // Parse row elements
         while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
-            let expr = Self::parse_addition(tokens, pos)?;
-            row.push(expr);
+            let expression = Self::parse_addition(tokens, pos)?;
+            row.push(expression);
 
             if *pos < tokens.len() && tokens[*pos] == Token::Comma {
                 *pos += 1; // consume ','
@@ -424,8 +423,8 @@ impl Parser {
         let mut elements = Vec::new();
 
         while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
-            let expr = Self::parse_addition(tokens, pos)?;
-            elements.push(expr);
+            let expression = Self::parse_addition(tokens, pos)?;
+            elements.push(expression);
 
             if *pos < tokens.len() && tokens[*pos] == Token::Comma {
                 *pos += 1; // consume ','

@@ -211,8 +211,8 @@ impl Equation {
         variables
     }
 
-    fn collect_variables(expr: &Expression, variables: &mut Vec<String>) {
-        match expr {
+    fn collect_variables(expression: &Expression, variables: &mut Vec<String>) {
+        match expression {
             Expression::Variable(name) => {
                 // Only add if not already in the list
                 if !variables.contains(name) {
@@ -253,12 +253,12 @@ impl Equation {
     }
 
     fn collect_polynomial_terms(
-        expr: &Expression,
+        expression: &Expression,
         variable: &str,
         coefficients: &mut HashMap<i32, f64>,
         sign: f64,
     ) -> Result<(), EvaluationError> {
-        match expr {
+        match expression {
             Expression::Real(n) => {
                 *coefficients.entry(0).or_insert(0.0) += sign * n;
             }
@@ -277,7 +277,7 @@ impl Equation {
             Expression::FunctionCall(fc) => {
                 // Check if function call contains the solving variable
                 let mut vars = Vec::new();
-                Self::collect_variables(expr, &mut vars);
+                Self::collect_variables(expression, &mut vars);
 
                 if vars.contains(&variable.to_string()) {
                     return Err(EvaluationError::UnsupportedOperation(format!(
@@ -302,11 +302,11 @@ impl Equation {
                 Self::collect_polynomial_terms(right, variable, coefficients, -sign)?;
             }
             Expression::Mul(..) => {
-                let (coeff, degree) = Self::extract_term(expr, variable)?;
+                let (coeff, degree) = Self::extract_term(expression, variable)?;
                 *coefficients.entry(degree).or_insert(0.0) += sign * coeff;
             }
             Expression::Pow(..) => {
-                let (coeff, degree) = Self::extract_term(expr, variable)?;
+                let (coeff, degree) = Self::extract_term(expression, variable)?;
                 *coefficients.entry(degree).or_insert(0.0) += sign * coeff;
             }
             Expression::Neg(inner) => {
@@ -321,8 +321,8 @@ impl Equation {
         Ok(())
     }
 
-    fn extract_term(expr: &Expression, variable: &str) -> Result<(f64, i32), EvaluationError> {
-        match expr {
+    fn extract_term(expression: &Expression, variable: &str) -> Result<(f64, i32), EvaluationError> {
+        match expression {
             Expression::Real(n) => Ok((*n, 0)),
             Expression::Complex(r, i) if i.abs() == 0.0 => Ok((*r, 0)),
             Expression::Variable(name) if name == variable => Ok((1.0, 1)),
@@ -345,7 +345,7 @@ impl Equation {
             }
             Expression::FunctionCall(_) => {
                 let mut vars = Vec::new();
-                Self::collect_variables(expr, &mut vars);
+                Self::collect_variables(expression, &mut vars);
 
                 if vars.contains(&variable.to_string()) {
                     Err(EvaluationError::UnsupportedOperation(
@@ -359,7 +359,7 @@ impl Equation {
             }
             _ => Err(EvaluationError::UnsupportedOperation(format!(
                 "Cannot extract term from: {:?}",
-                expr
+                expression
             ))),
         }
     }

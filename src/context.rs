@@ -31,13 +31,20 @@ impl fmt::Display for StatementResult {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefinition {
+    pub name: String,
     pub params: Vec<String>,
     pub body: Expression,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Variable {
+    pub name: String,
+    pub expression: Expression,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Symbol {
-    Variable(Expression),
+    Variable(Variable),
     Function(FunctionDefinition),
 }
 
@@ -67,14 +74,14 @@ impl Context {
     }
 
     pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.table.get(name)
+        self.table.get(name.to_lowercase().as_str())
     }
 
     pub fn print_table(&self) {
-        for (name, symbol) in self.table.iter() {
-            match symbol {
-                Symbol::Variable(variable) => println!("{} = {}", name, variable),
-                Symbol::Function(FunctionDefinition { params, body }) => {
+        for (_, value) in self.table.iter() {
+            match value {
+                Symbol::Variable(Variable { name, expression}) => println!("{} = {}", name, expression),
+                Symbol::Function(FunctionDefinition { name, params, body }) => {
                     print!("{}", name);
                     print!("(");
                     for (i, param) in params.iter().enumerate() {
@@ -106,8 +113,8 @@ impl Context {
         }
     }
 
-    pub fn evaluate_expression(&self, expr: &Expression) -> Result<Expression, EvaluationError> {
-        expr.evaluate(self)?.reduce()
+    pub fn evaluate_expression(&self, expression: &Expression) -> Result<Expression, EvaluationError> {
+        expression.evaluate(self)?.reduce()
     }
 
     pub fn evaluate_equation(
@@ -123,12 +130,12 @@ impl Context {
     }
 
     pub fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {
-        self.table.insert(name, symbol.clone());
-        let expr = match symbol {
-            Symbol::Variable(expr) => expr,
-            Symbol::Function(func) => func.body,
+        self.table.insert(name.to_lowercase(), symbol.clone());
+        let expression = match symbol {
+            Symbol::Variable(Variable { expression, .. }) => expression,
+            Symbol::Function(FunctionDefinition { body, .. }) => body,
         };
 
-        expr.evaluate(self)?.reduce()
+        expression.evaluate(self)?.reduce()
     }
 }

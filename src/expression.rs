@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    context::{Context, Symbol},
+    context::{Context, Symbol, Variable},
     error::EvaluationError,
 };
 
@@ -757,15 +757,15 @@ impl Expression {
 
             Expression::Variable(name) => {
                 // First check function parameter scope
-                if let Some(expr) = scope.get(name) {
-                    return Ok(expr.clone());
+                if let Some(expression) = scope.get(name) {
+                    return Ok(expression.clone());
                 }
 
                 // Then check context variables
                 match context.get_symbol(name) {
-                    Some(Symbol::Variable(expr)) => {
+                    Some(Symbol::Variable(Variable { expression, ..})) => {
                         // Recursively evaluate the variable's expression
-                        expr.evaluate_internal(context, scope)
+                        expression.evaluate_internal(context, scope)
                     }
                     Some(Symbol::Function { .. }) => Err(EvaluationError::InvalidOperation(
                         format!("Cannot use function '{}' as variable", name),
@@ -948,8 +948,8 @@ impl Expression {
             Expression::Real(n) => Ok(vec![Term::constant(sign * n)]),
             Expression::Complex(r, i) if i.abs() == 0.0 => Ok(vec![Term::constant(sign * r)]),
             Expression::Mul(..) => {
-                let (coeff, expr) = self.extract_coefficient();
-                Ok(vec![Term::new(sign * coeff, expr)])
+                let (coeff, expression) = self.extract_coefficient();
+                Ok(vec![Term::new(sign * coeff, expression)])
             }
             _ => {
                 // Variable, Pow, FunctionCall, etc.
