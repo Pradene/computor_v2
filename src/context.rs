@@ -43,7 +43,7 @@ pub enum Symbol {
 
 #[derive(Debug, Clone)]
 pub struct Context {
-    symbols: HashMap<String, Symbol>,
+    table: HashMap<String, Symbol>,
 }
 
 impl Default for Context {
@@ -55,7 +55,7 @@ impl Default for Context {
 impl Context {
     pub fn new() -> Self {
         Context {
-            symbols: HashMap::new(),
+            table: HashMap::new(),
         }
     }
 
@@ -74,11 +74,11 @@ impl Context {
     }
 
     pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.symbols.get(name)
+        self.table.get(name)
     }
 
     pub fn print_table(&self) {
-        for (name, symbol) in self.symbols.iter() {
+        for (name, symbol) in self.table.iter() {
             match symbol {
                 Symbol::Variable(variable) => println!("{} = {}", name, variable),
                 Symbol::Function(FunctionDefinition { params, body }) => {
@@ -132,7 +132,7 @@ impl Context {
     }
 
     fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {
-        self.symbols.insert(name, symbol.clone());
+        self.table.insert(name, symbol.clone());
         let expr = match symbol {
             Symbol::Variable(expr) => expr,
             Symbol::Function(func) => func.body,

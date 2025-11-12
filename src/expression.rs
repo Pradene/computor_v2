@@ -329,51 +329,95 @@ impl Mul for Expression {
 
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a * b)),
+            (Expression::Real(a), Expression::Real(b)) => {
+                // Always return positive zero if either operand is zero
+                if a.abs() == 0.0 || b.abs() == 0.0 {
+                    Ok(Expression::Real(0.0))
+                } else {
+                    Ok(Expression::Real(a * b))
+                }
+            }
             (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
-                Ok(Self::complex_mul(a_r, a_i, b_r, b_i))
+                // Check if either is zero
+                let a_is_zero = a_r.abs() == 0.0 && a_i.abs() == 0.0;
+                let b_is_zero = b_r.abs() == 0.0 && b_i.abs() == 0.0;
+
+                if a_is_zero || b_is_zero {
+                    Ok(Expression::Complex(0.0, 0.0))
+                } else {
+                    Ok(Self::complex_mul(a_r, a_i, b_r, b_i))
+                }
             }
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
-                Ok(Self::complex_mul(a, 0.0, b_r, b_i))
+                if a.abs() == 0.0 || (b_r.abs() == 0.0 && b_i.abs() == 0.0) {
+                    Ok(Expression::Complex(0.0, 0.0))
+                } else {
+                    Ok(Self::complex_mul(a, 0.0, b_r, b_i))
+                }
             }
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
-                Ok(Self::complex_mul(a_r, a_i, b, 0.0))
+                if (a_r.abs() == 0.0 && a_i.abs() == 0.0) || b.abs() == 0.0 {
+                    Ok(Expression::Complex(0.0, 0.0))
+                } else {
+                    Ok(Self::complex_mul(a_r, a_i, b, 0.0))
+                }
             }
 
             // Scalar * Vector
             (Expression::Real(s), Expression::Vector(v))
             | (Expression::Vector(v), Expression::Real(s)) => {
-                let result: Result<Vec<Expression>, _> = v
-                    .iter()
-                    .map(|x| x.clone().mul(Expression::Real(s)))
-                    .collect();
-                Ok(Expression::Vector(result?))
+                if s.abs() == 0.0 {
+                    // Return zero vector
+                    let zero_vec = vec![Expression::Real(0.0); v.len()];
+                    Ok(Expression::Vector(zero_vec))
+                } else {
+                    let result: Result<Vec<Expression>, _> = v
+                        .iter()
+                        .map(|x| x.clone().mul(Expression::Real(s)))
+                        .collect();
+                    Ok(Expression::Vector(result?))
+                }
             }
             (Expression::Complex(r, i), Expression::Vector(v))
             | (Expression::Vector(v), Expression::Complex(r, i)) => {
-                let result: Result<Vec<Expression>, _> = v
-                    .iter()
-                    .map(|x| x.clone().mul(Expression::Complex(r, i)))
-                    .collect();
-                Ok(Expression::Vector(result?))
+                if r.abs() == 0.0 && i.abs() == 0.0 {
+                    let zero_vec = vec![Expression::Complex(0.0, 0.0); v.len()];
+                    Ok(Expression::Vector(zero_vec))
+                } else {
+                    let result: Result<Vec<Expression>, _> = v
+                        .iter()
+                        .map(|x| x.clone().mul(Expression::Complex(r, i)))
+                        .collect();
+                    Ok(Expression::Vector(result?))
+                }
             }
 
             // Scalar * Matrix
             (Expression::Real(s), Expression::Matrix(data, rows, cols))
             | (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
-                let result: Result<Vec<Expression>, _> = data
-                    .iter()
-                    .map(|x| x.clone().mul(Expression::Real(s)))
-                    .collect();
-                Ok(Expression::Matrix(result?, rows, cols))
+                if s.abs() == 0.0 {
+                    let zero_matrix = vec![Expression::Real(0.0); rows * cols];
+                    Ok(Expression::Matrix(zero_matrix, rows, cols))
+                } else {
+                    let result: Result<Vec<Expression>, _> = data
+                        .iter()
+                        .map(|x| x.clone().mul(Expression::Real(s)))
+                        .collect();
+                    Ok(Expression::Matrix(result?, rows, cols))
+                }
             }
             (Expression::Complex(r, i), Expression::Matrix(data, rows, cols))
             | (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
-                let result: Result<Vec<Expression>, _> = data
-                    .iter()
-                    .map(|x| x.clone().mul(Expression::Complex(r, i)))
-                    .collect();
-                Ok(Expression::Matrix(result?, rows, cols))
+                if r.abs() == 0.0 && i.abs() == 0.0 {
+                    let zero_matrix = vec![Expression::Complex(0.0, 0.0); rows * cols];
+                    Ok(Expression::Matrix(zero_matrix, rows, cols))
+                } else {
+                    let result: Result<Vec<Expression>, _> = data
+                        .iter()
+                        .map(|x| x.clone().mul(Expression::Complex(r, i)))
+                        .collect();
+                    Ok(Expression::Matrix(result?, rows, cols))
+                }
             }
 
             // Hadamard product (element-wise) for matrices
@@ -471,9 +515,7 @@ impl Div for Expression {
         }
 
         match (self, rhs) {
-            (Expression::Real(a), Expression::Real(b)) => {
-                Ok(Expression::Real(a / b))
-            }
+            (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a / b)),
             (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
                 Self::complex_div(a_r, a_i, b_r, b_i)
             }
@@ -545,13 +587,12 @@ impl Neg for Expression {
 
     fn neg(self) -> Self::Output {
         match self {
-            Expression::Real(n) if n == 0.0 => Ok(Expression::Real(0.0)),
-            Expression::Real(n) => Ok(Expression::Neg(Box::new(Expression::Real(n)))),
-
+            Expression::Real(n) if n.abs() == 0.0 => Ok(Expression::Real(0.0)),
+            Expression::Real(n) => Ok(Expression::Real(-n)),
             Expression::Complex(r, i) if r.abs() == 0.0 && i.abs() == 0.0 => {
                 Ok(Expression::Complex(0.0, 0.0))
             }
-            Expression::Complex(r, i) => Ok(Expression::Neg(Box::new(Expression::Complex(r, i)))),
+            Expression::Complex(r, i) => Ok(Expression::Complex(-r, -i)),
             Expression::Vector(v) => {
                 let result: Result<Vec<Expression>, _> = v.into_iter().map(|x| x.neg()).collect();
                 Ok(Expression::Vector(result?))
@@ -905,9 +946,7 @@ impl Expression {
             }
             Expression::Neg(inner) => inner.extract_terms(-sign),
             Expression::Real(n) => Ok(vec![Term::constant(sign * n)]),
-            Expression::Complex(r, i) if i.abs() == 0.0 => {
-                Ok(vec![Term::constant(sign * r)])
-            }
+            Expression::Complex(r, i) if i.abs() == 0.0 => Ok(vec![Term::constant(sign * r)]),
             Expression::Mul(..) => {
                 let (coeff, expr) = self.extract_coefficient();
                 Ok(vec![Term::new(sign * coeff, expr)])

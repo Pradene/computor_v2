@@ -35,7 +35,9 @@ impl Parser {
                     Ok(Statement::Query { expression })
                 } else {
                     let left = Self::parse_expression_from_tokens(left_tokens)?;
-                    let right = Self::parse_expression_from_tokens(&right_tokens[..right_tokens.len() - 1])?;
+                    let right = Self::parse_expression_from_tokens(
+                        &right_tokens[..right_tokens.len() - 1],
+                    )?;
                     Ok(Statement::Equation { left, right })
                 }
             } else {
@@ -138,7 +140,7 @@ impl Parser {
             ));
         }
 
-    Ok(params)
+        Ok(params)
     }
 
     fn parse_expression_from_tokens(tokens: &[Token]) -> Result<Expression, ParseError> {
