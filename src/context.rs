@@ -14,7 +14,7 @@ pub enum Statement {
     Query { expression: Expression },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StatementResult {
     Value(Expression),
     Solution(EquationSolution),
@@ -80,7 +80,9 @@ impl Context {
     pub fn print_table(&self) {
         for (_, value) in self.table.iter() {
             match value {
-                Symbol::Variable(Variable { name, expression}) => println!("{} = {}", name, expression),
+                Symbol::Variable(Variable { name, expression }) => {
+                    println!("{} = {}", name, expression)
+                }
                 Symbol::Function(FunctionDefinition { name, params, body }) => {
                     print!("{}", name);
                     print!("(");
@@ -113,7 +115,10 @@ impl Context {
         }
     }
 
-    pub fn evaluate_expression(&self, expression: &Expression) -> Result<Expression, EvaluationError> {
+    pub fn evaluate_expression(
+        &self,
+        expression: &Expression,
+    ) -> Result<Expression, EvaluationError> {
         expression.evaluate(self)?.reduce()
     }
 
@@ -137,5 +142,86 @@ impl Context {
         };
 
         expression.evaluate(self)?.reduce()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        context::{Context, StatementResult},
+        equation::EquationSolution,
+        expression::Expression,
+    };
+
+    #[test]
+    fn simple_assign() {
+        let mut context = Context::new();
+
+        match context.compute("a = 5") {
+            Ok(result) => assert_eq!(result, StatementResult::Value(Expression::Real(5.0))),
+            Err(_) => {}
+        }
+    }
+
+    #[test]
+    fn addition() {
+        let mut context = Context::new();
+
+        match context.compute("5 + 7 = ?") {
+            Ok(result) => assert_eq!(result, StatementResult::Value(Expression::Real(12.0))),
+            Err(_) => {}
+        }
+    }
+
+    #[test]
+    fn multiply() {
+        let mut context = Context::new();
+
+        match context.compute("5 * ( 5 + 7 ) = ?") {
+            Ok(result) => assert_eq!(result, StatementResult::Value(Expression::Real(60.0))),
+            Err(_) => {}
+        }
+    }
+
+    #[test]
+    fn multiply_by_0() {
+        let mut context = Context::new();
+
+        match context.compute("0 * ( -5 + 7 ) = ?") {
+            Ok(result) => assert_eq!(result, StatementResult::Value(Expression::Real(0.0))),
+            Err(_) => {}
+        }
+    }
+
+    #[test]
+    fn first_degree_equation() {
+        let mut context = Context::new();
+
+        match context.compute("2x = 4 ?") {
+            Ok(result) => assert_eq!(
+                result,
+                StatementResult::Solution(EquationSolution::Finite {
+                    variable: "x".to_string(),
+                    solutions: vec![Expression::Real(2.0)]
+                })
+            ),
+            Err(_) => {}
+        }
+    }
+
+    #[test]
+    fn second_degree_equation() {
+        let mut context = Context::new();
+
+        match context.compute("-4x^2 + 12x + 4 = 4 ?") {
+            Ok(result) => assert_eq!(
+                result,
+                StatementResult::Solution(EquationSolution::Finite {
+                    variable: "x".to_string(),
+                    solutions: vec![Expression::Real(0.0), Expression::Real(3.0)]
+                })
+            ),
+            Err(_) => {}
+        }
     }
 }

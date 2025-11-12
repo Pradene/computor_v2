@@ -763,7 +763,7 @@ impl Expression {
 
                 // Then check context variables
                 match context.get_symbol(name) {
-                    Some(Symbol::Variable(Variable { expression, ..})) => {
+                    Some(Symbol::Variable(Variable { expression, .. })) => {
                         // Recursively evaluate the variable's expression
                         expression.evaluate_internal(context, scope)
                     }

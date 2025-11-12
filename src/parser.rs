@@ -80,7 +80,11 @@ impl Parser {
             let params = Self::parse_function_parameters(&left_tokens[2..left_tokens.len() - 1])?;
             let body = Self::parse_expression_from_tokens(right_tokens)?;
 
-            let value = Symbol::Function(FunctionDefinition { name: name.clone(), params, body });
+            let value = Symbol::Function(FunctionDefinition {
+                name: name.clone(),
+                params,
+                body,
+            });
             Ok(Statement::Assignment { name, value })
         } else if left_tokens.len() == 1 {
             // Simple assignment: x = ...

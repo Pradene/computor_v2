@@ -175,6 +175,10 @@ impl Equation {
             let sqrt_discriminant = discriminant.sqrt();
             let x1 = (-b + sqrt_discriminant) / (2.0 * a);
             let x2 = (-b - sqrt_discriminant) / (2.0 * a);
+
+            let x1 = if x1.abs() == 0.0 { 0.0 } else { x1 };
+            let x2 = if x2.abs() == 0.0 { 0.0 } else { x2 };
+
             EquationSolution::Finite {
                 variable,
                 solutions: vec![Expression::Real(x1), Expression::Real(x2)],
@@ -182,6 +186,8 @@ impl Equation {
         } else if discriminant.abs() == 0.0 {
             // One real solution (double root)
             let x = -b / (2.0 * a);
+            let x = if x.abs() == 0.0 { 0.0 } else { x };
+
             EquationSolution::Finite {
                 variable,
                 solutions: vec![Expression::Real(x)],
@@ -293,6 +299,9 @@ impl Equation {
                     fc.name
                 )));
             }
+            Expression::Paren(inner) => {
+                Self::collect_polynomial_terms(inner, variable, coefficients, sign)?;
+            }
             Expression::Add(left, right) => {
                 Self::collect_polynomial_terms(left, variable, coefficients, sign)?;
                 Self::collect_polynomial_terms(right, variable, coefficients, sign)?;
@@ -321,27 +330,108 @@ impl Equation {
         Ok(())
     }
 
-    fn extract_term(expression: &Expression, variable: &str) -> Result<(f64, i32), EvaluationError> {
+    fn extract_term(
+        expression: &Expression,
+        variable: &str,
+    ) -> Result<(f64, i32), EvaluationError> {
         match expression {
             Expression::Real(n) => Ok((*n, 0)),
             Expression::Complex(r, i) if i.abs() == 0.0 => Ok((*r, 0)),
             Expression::Variable(name) if name == variable => Ok((1.0, 1)),
+            Expression::Paren(inner) => Self::extract_term(inner, variable),
+            Expression::Neg(inner) => {
+                let (coeff, degree) = Self::extract_term(inner, variable)?;
+                Ok((-coeff, degree))
+            }
             Expression::Mul(left, right) => {
                 let (left_coeff, left_degree) = Self::extract_term(left, variable)?;
                 let (right_coeff, right_degree) = Self::extract_term(right, variable)?;
                 Ok((left_coeff * right_coeff, left_degree + right_degree))
             }
             Expression::Pow(left, right) => {
-                if let Expression::Variable(name) = left.as_ref() {
-                    if name == variable {
-                        if let Expression::Real(exp) = right.as_ref() {
-                            return Ok((1.0, *exp as i32));
+                if let Expression::Real(exp) = right.as_ref() {
+                    let exp_i32 = *exp as i32;
+
+                    // First unwrap any parentheses from the base
+                    let unwrapped_left = match left.as_ref() {
+                        Expression::Paren(inner) => inner.as_ref(),
+                        other => other,
+                    };
+
+                    match unwrapped_left {
+                        // Handle x^n
+                        Expression::Variable(name) if name == variable => Ok((1.0, exp_i32)),
+                        // Handle (coeff * x)^n
+                        Expression::Mul(l, r) => {
+                            // Try both orderings: (coeff * x) and (x * coeff)
+                            if let (Expression::Real(coeff), Expression::Variable(name)) =
+                                (l.as_ref(), r.as_ref())
+                            {
+                                if name == variable {
+                                    return Ok((coeff.powf(*exp), exp_i32));
+                                }
+                            }
+                            if let (Expression::Variable(name), Expression::Real(coeff)) =
+                                (l.as_ref(), r.as_ref())
+                            {
+                                if name == variable {
+                                    return Ok((coeff.powf(*exp), exp_i32));
+                                }
+                            }
+                            Err(EvaluationError::UnsupportedOperation(
+                                "Invalid power expression in multiplication".to_string(),
+                            ))
                         }
+                        // Handle (-x)^n or (-(coeff * x))^n or (-coeff * x)^n
+                        Expression::Neg(inner) => {
+                            // Unwrap any parentheses inside the negation
+                            let unwrapped_inner = match inner.as_ref() {
+                                Expression::Paren(p) => p.as_ref(),
+                                other => other,
+                            };
+
+                            match unwrapped_inner {
+                                // (-x)^n
+                                Expression::Variable(name) if name == variable => {
+                                    let sign = if exp_i32 % 2 == 0 { 1.0 } else { -1.0 };
+                                    Ok((sign, exp_i32))
+                                }
+                                // (-(coeff * x))^n or (-coeff * x)^n
+                                Expression::Mul(l, r) => {
+                                    if let (Expression::Real(coeff), Expression::Variable(name)) =
+                                        (l.as_ref(), r.as_ref())
+                                    {
+                                        if name == variable {
+                                            let sign = if exp_i32 % 2 == 0 { 1.0 } else { -1.0 };
+                                            return Ok((sign * coeff.powf(*exp), exp_i32));
+                                        }
+                                    }
+                                    if let (Expression::Variable(name), Expression::Real(coeff)) =
+                                        (l.as_ref(), r.as_ref())
+                                    {
+                                        if name == variable {
+                                            let sign = if exp_i32 % 2 == 0 { 1.0 } else { -1.0 };
+                                            return Ok((sign * coeff.powf(*exp), exp_i32));
+                                        }
+                                    }
+                                    Err(EvaluationError::UnsupportedOperation(
+                                        "Invalid power expression in negation".to_string(),
+                                    ))
+                                }
+                                _ => Err(EvaluationError::UnsupportedOperation(
+                                    "Invalid power expression".to_string(),
+                                )),
+                            }
+                        }
+                        _ => Err(EvaluationError::UnsupportedOperation(
+                            "Invalid power base".to_string(),
+                        )),
                     }
+                } else {
+                    Err(EvaluationError::UnsupportedOperation(
+                        "Power exponent must be a real number".to_string(),
+                    ))
                 }
-                Err(EvaluationError::UnsupportedOperation(
-                    "Invalid power expression".to_string(),
-                ))
             }
             Expression::FunctionCall(_) => {
                 let mut vars = Vec::new();
