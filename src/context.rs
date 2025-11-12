@@ -63,7 +63,7 @@ impl Context {
         let statement = Parser::parse(line).map_err(|e| ComputorError::Parsing(e.to_string()))?;
         let result = self
             .execute(statement)
-            .map_err(|e| ComputorError::Evaluation(e))?;
+            .map_err(ComputorError::Evaluation)?;
 
         Ok(result)
     }

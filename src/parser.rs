@@ -18,7 +18,7 @@ impl Parser {
 
         if let Some(eq_pos) = Self::find_equals_position(&tokens) {
             let left_tokens = &tokens[..eq_pos];
-            let right_tokens = &tokens[eq_pos + 1..tokens.len()]; // Exclude EOF
+            let right_tokens = &tokens[eq_pos + 1..];
 
             // Check is right side is empty
             if right_tokens.is_empty() {
@@ -133,7 +133,7 @@ impl Parser {
         }
 
         // Check if we ended expecting an identifier (trailing comma)
-        if expect_identifier == true && params.is_empty() == false {
+        if expect_identifier && !params.is_empty() {
             return Err(ParseError::InvalidSyntax(
                 "Trailing comma in parameter list".to_string(),
             ));
