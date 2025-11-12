@@ -14,19 +14,21 @@ fn main() -> RustylineResult<()> {
     loop {
         match reader.readline("> ") {
             Ok(line) => {
-                if line.as_str() == "quit" {
-                    break;
-                } else if line.trim().is_empty() {
+                let line = line.trim();
+
+                if line.is_empty() {
                     continue;
-                } else if line.as_str() == "table" {
+                } else if line == "quit" {
+                    break;
+                } else if line == "table" {
                     context.print_table();
                 } else {
-                    match context.compute(line.as_str()) {
+                    match context.compute(line) {
                         Ok(result) => println!("{}", result),
                         Err(e) => eprintln!("{}", e),
                     }
                 }
-                reader.add_history_entry(line.as_str())?;
+                reader.add_history_entry(line)?;
             }
             Err(ReadlineError::Interrupted) => {
                 eprintln!("Ctrl-C");
