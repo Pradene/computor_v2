@@ -10,16 +10,15 @@ pub struct Parser;
 impl Parser {
     pub fn parse(line: &str) -> Result<Statement, ParseError> {
         let line = line.to_lowercase();
-        let mut tokenizer = Tokenizer::new(&line);
-        let tokens = tokenizer.tokenize()?;
+        let tokens = Tokenizer::tokenize(&line)?;
 
-        if tokens.is_empty() || tokens.len() == 1 {
+        if tokens.is_empty() {
             return Err(ParseError::InvalidSyntax("Empty line".to_string()));
         }
 
         if let Some(eq_pos) = Self::find_equals_position(&tokens) {
             let left_tokens = &tokens[..eq_pos];
-            let right_tokens = &tokens[eq_pos + 1..tokens.len() - 1]; // Exclude EOF
+            let right_tokens = &tokens[eq_pos + 1..tokens.len()]; // Exclude EOF
 
             // Check is right side is empty
             if right_tokens.is_empty() {

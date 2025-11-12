@@ -23,174 +23,162 @@ pub enum Token {
     Eof,
 }
 
-pub struct Tokenizer {
-    input: Vec<char>,
-    position: usize,
-}
+pub struct Tokenizer;
 
 impl Tokenizer {
-    pub fn new(input: &str) -> Self {
-        Self {
-            input: input.chars().collect(),
-            position: 0,
-        }
-    }
-
-    pub fn tokenize(&mut self) -> Result<Vec<Token>, ParseError> {
+    pub fn tokenize(input: &str) -> Result<Vec<Token>, ParseError> {
+        let chars: Vec<char> = input.chars().collect();
         let mut tokens = Vec::new();
+        let mut position = 0;
 
         loop {
-            let token = self.next_token()?;
+            let token = Self::next_token(&chars, &mut position)?;
             let is_eof = token == Token::Eof;
-            tokens.push(token);
             if is_eof {
                 break;
             }
+            tokens.push(token);
         }
 
         Ok(tokens)
     }
 
-    fn current_char(&self) -> Option<char> {
-        self.input.get(self.position).copied()
+    fn current_char(chars: &[char], position: usize) -> Option<char> {
+        chars.get(position).copied()
     }
 
-    fn peek_char(&self, offset: usize) -> Option<char> {
-        self.input.get(self.position + offset).copied()
+    fn peek_char(chars: &[char], position: usize, offset: usize) -> Option<char> {
+        chars.get(position + offset).copied()
     }
 
-    fn advance(&mut self) {
-        self.position += 1;
-    }
-
-    fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.current_char() {
+    fn skip_whitespace(chars: &[char], position: &mut usize) {
+        while let Some(ch) = Self::current_char(chars, *position) {
             if ch.is_whitespace() {
-                self.advance();
+                *position += 1;
             } else {
                 break;
             }
         }
     }
 
-    fn read_number(&mut self) -> Result<f64, ParseError> {
-        let start = self.position;
+    fn read_number(chars: &[char], position: &mut usize) -> Result<f64, ParseError> {
+        let start = *position;
 
-        while let Some(ch) = self.current_char() {
+        while let Some(ch) = Self::current_char(chars, *position) {
             if ch.is_ascii_digit() || ch == '.' {
-                self.advance();
+                *position += 1;
             } else {
                 break;
             }
         }
 
-        let number_str: String = self.input[start..self.position].iter().collect();
+        let number_str: String = chars[start..*position].iter().collect();
         number_str
             .parse::<f64>()
             .map_err(|_| ParseError::InvalidNumber(number_str))
     }
 
-    fn read_identifier(&mut self) -> String {
-        let start = self.position;
+    fn read_identifier(chars: &[char], position: &mut usize) -> String {
+        let start = *position;
 
-        while let Some(ch) = self.current_char() {
+        while let Some(ch) = Self::current_char(chars, *position) {
             if ch.is_ascii_alphabetic() {
-                self.advance();
+                *position += 1;
             } else {
                 break;
             }
         }
 
-        self.input[start..self.position].iter().collect()
+        chars[start..*position].iter().collect()
     }
 
-    fn next_token(&mut self) -> Result<Token, ParseError> {
-        self.skip_whitespace();
+    fn next_token(chars: &[char], position: &mut usize) -> Result<Token, ParseError> {
+        Self::skip_whitespace(chars, position);
 
-        match self.current_char() {
+        match Self::current_char(chars, *position) {
             None => Ok(Token::Eof),
             Some(ch) => match ch {
                 '+' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Plus)
                 }
                 '-' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Minus)
                 }
                 '*' => {
-                    self.advance();
-                    if self.current_char() == Some('*') {
-                        self.advance();
+                    *position += 1;
+                    if Self::current_char(chars, *position) == Some('*') {
+                        *position += 1;
                         Ok(Token::MatMul)
                     } else {
                         Ok(Token::Mul)
                     }
                 }
                 '/' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Divide)
                 }
                 '%' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Modulo)
                 }
                 '^' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Power)
                 }
                 '(' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::LeftParen)
                 }
                 ')' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::RightParen)
                 }
                 '=' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Equal)
                 }
                 '[' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::LeftBracket)
                 }
                 ']' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::RightBracket)
                 }
                 ';' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Semicolon)
                 }
                 '?' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Question)
                 }
                 ',' => {
-                    self.advance();
+                    *position += 1;
                     Ok(Token::Comma)
                 }
                 'i' => {
-                    if let Some(next) = self.peek_char(1) {
+                    if let Some(next) = Self::peek_char(chars, *position, 1) {
                         if next.is_ascii_alphabetic() {
-                            let ident = self.read_identifier();
+                            let ident = Self::read_identifier(chars, position);
                             Ok(Token::Identifier(ident))
                         } else {
-                            self.advance();
+                            *position += 1;
                             Ok(Token::Imaginary)
                         }
                     } else {
-                        self.advance();
+                        *position += 1;
                         Ok(Token::Imaginary)
                     }
                 }
                 _ if ch.is_ascii_digit() => {
-                    let num = self.read_number()?;
+                    let num = Self::read_number(chars, position)?;
                     Ok(Token::Number(num))
                 }
                 _ if ch.is_ascii_alphabetic() => {
-                    let ident = self.read_identifier();
+                    let ident = Self::read_identifier(chars, position);
                     Ok(Token::Identifier(ident))
                 }
                 _ => Err(ParseError::UnexpectedToken(ch.to_string())),
