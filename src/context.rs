@@ -148,34 +148,52 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use crate::{
-        context::{Context, StatementResult}, 
-        equation::EquationSolution, 
-        error::{ComputorError, EvaluationError}, 
-        expression::Expression
+        context::{Context, StatementResult},
+        equation::EquationSolution,
+        error::{ComputorError, EvaluationError},
+        expression::Expression,
     };
 
+    fn compute_ok(line: &str) -> StatementResult {
+        Context::new().compute(line).expect("computation failed")
+    }
+
     #[test]
-    fn simple_assign() {
-        let mut context = Context::new();
-        let result = context.compute("a = 5").expect("computation should succeed");
-        assert_eq!(result, StatementResult::Value(Expression::Real(5.0)));
+    fn assign() {
+        let cases = vec![
+            ("a = 5", 5.0),
+            ("b = 12 * 5 - 10", 50.0),
+            ("c = (35 / 5 + 5) * 12", 144.0),
+        ];
+
+        for (input, expected) in cases {
+            let result = compute_ok(input);
+            assert_eq!(result, StatementResult::Value(Expression::Real(expected)));
+        }
     }
 
     #[test]
     fn addition() {
-        let mut context = Context::new();
-        let result = context.compute("5 + 7 = ?").expect("computation should succeed");
-        assert_eq!(result, StatementResult::Value(Expression::Real(12.0)));
+        let cases = vec![
+            ("2 + 3 = ?", 5.0),
+            ("10 + 10 = ?", 20.0),
+            ("3.2 + 4 + 4 + 4 = ?", 15.2),
+        ];
+
+        for (input, expected) in cases {
+            let result = compute_ok(input);
+            assert_eq!(result, StatementResult::Value(Expression::Real(expected)));
+        }
     }
 
     #[test]
     fn division_by_zero() {
         let mut context = Context::new();
         let result = context.compute("5 / 0 = ?");
-        
+
         assert!(result.is_err(), "division by zero should fail");
         assert_eq!(
-            result.unwrap_err(), 
+            result.unwrap_err(),
             ComputorError::Evaluation(EvaluationError::DivisionByZero)
         );
     }
@@ -183,22 +201,28 @@ mod tests {
     #[test]
     fn multiply() {
         let mut context = Context::new();
-        let result = context.compute("5 * ( 5 + 7 ) = ?").expect("computation should succeed");
+        let result = context
+            .compute("5 * ( 5 + 7 ) = ?")
+            .expect("computation should succeed");
         assert_eq!(result, StatementResult::Value(Expression::Real(60.0)));
     }
 
     #[test]
     fn multiply_by_0() {
         let mut context = Context::new();
-        let result = context.compute("0 * ( -5 + 7 ) = ?").expect("computation should succeed");
+        let result = context
+            .compute("0 * ( -5 + 7 ) = ?")
+            .expect("computation should succeed");
         assert_eq!(result, StatementResult::Value(Expression::Real(0.0)));
     }
 
     #[test]
     fn first_degree_equation() {
         let mut context = Context::new();
-        let result = context.compute("2x = 4 ?").expect("computation should succeed");
-        
+        let result = context
+            .compute("2x = 4 ?")
+            .expect("computation should succeed");
+
         assert_eq!(
             result,
             StatementResult::Solution(EquationSolution::Finite {
@@ -211,8 +235,10 @@ mod tests {
     #[test]
     fn second_degree_equation() {
         let mut context = Context::new();
-        let result = context.compute("-4x^2 + 12x + 4 = 4 ?").expect("computation should succeed");
-        
+        let result = context
+            .compute("-4x^2 + 12x + 4 = 4 ?")
+            .expect("computation should succeed");
+
         assert_eq!(
             result,
             StatementResult::Solution(EquationSolution::Finite {
@@ -225,10 +251,14 @@ mod tests {
     #[test]
     fn variable_assignment_and_reuse() {
         let mut context = Context::new();
-        
-        context.compute("a = 5").expect("first assignment should succeed");
-        let result = context.compute("a + 3 = ?").expect("computation should succeed");
-        
+
+        context
+            .compute("a = 5")
+            .expect("first assignment should succeed");
+        let result = context
+            .compute("a + 3 = ?")
+            .expect("computation should succeed");
+
         assert_eq!(result, StatementResult::Value(Expression::Real(8.0)));
     }
 
@@ -245,17 +275,19 @@ mod tests {
     fn undefined_variable_should_work() {
         let mut context = Context::new();
         let result = context.compute("undefined + 5 = ?");
-        
+
         assert!(result.is_ok(), "undefined variable should work");
     }
 
     #[test]
     fn zero_equation_should_be_infinite() {
         let mut context = Context::new();
-        let result = context.compute("x = x ?").expect("computation should succeed");
-        
+        let result = context
+            .compute("x = x ?")
+            .expect("computation should succeed");
+
         match result {
-            StatementResult::Solution(EquationSolution::Infinite { .. }) => {},
+            StatementResult::Solution(EquationSolution::Infinite { .. }) => {}
             _ => panic!("equation with infinite solutions should return Infinite variant"),
         }
     }
@@ -263,10 +295,12 @@ mod tests {
     #[test]
     fn impossible_equation_should_be_empty() {
         let mut context = Context::new();
-        let result = context.compute("0 = 1 ?").expect("computation should succeed");
-        
+        let result = context
+            .compute("0 = 1 ?")
+            .expect("computation should succeed");
+
         match result {
-            StatementResult::Solution(EquationSolution::NoSolution { .. }) => {},
+            StatementResult::Solution(EquationSolution::NoSolution { .. }) => {}
             _ => panic!("impossible equation should return Empty variant"),
         }
     }
