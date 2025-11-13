@@ -31,10 +31,6 @@ impl fmt::Display for StatementResult {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BuiltinFunction {
-    Sqrt,
-    Sin,
-    Cos,
-    Abs,
     Rad,
 }
 
@@ -73,22 +69,6 @@ impl Context {
     pub fn new() -> Self {
         let mut table = HashMap::new();
 
-        table.insert(
-            "sqrt".to_string(),
-            Symbol::BuiltinFunction(BuiltinFunction::Sqrt),
-        );
-        table.insert(
-            "abs".to_string(),
-            Symbol::BuiltinFunction(BuiltinFunction::Abs),
-        );
-        table.insert(
-            "cos".to_string(),
-            Symbol::BuiltinFunction(BuiltinFunction::Cos),
-        );
-        table.insert(
-            "sin".to_string(),
-            Symbol::BuiltinFunction(BuiltinFunction::Sin),
-        );
         table.insert(
             "rad".to_string(),
             Symbol::BuiltinFunction(BuiltinFunction::Rad),

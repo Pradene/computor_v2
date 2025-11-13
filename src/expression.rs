@@ -824,7 +824,6 @@ impl Expression {
                                     _ => Err(EvaluationError::UnsupportedOperation("rad is only supported for real numbers".to_string())),
                                 }
                             }
-                            _ => Err(EvaluationError::UndefinedFunction("TODO: implement builtin function".to_string())),
                         }
                     }
                     None => {
