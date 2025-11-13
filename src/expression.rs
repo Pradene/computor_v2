@@ -767,9 +767,12 @@ impl Expression {
                         // Recursively evaluate the variable's expression
                         expression.evaluate_internal(context, scope)
                     }
-                    Some(Symbol::Function { .. }) => Err(EvaluationError::InvalidOperation(
-                        format!("Cannot use function '{}' as variable", name),
-                    )),
+                    Some(Symbol::Function(_) | Symbol::BuiltinFunction(_)) => {
+                        Err(EvaluationError::InvalidOperation(format!(
+                            "Cannot use function '{}' as variable",
+                            name
+                        )))
+                    }
                     None => Ok(Expression::Variable(name.to_string())), // Keep symbolic
                 }
             }
@@ -807,6 +810,9 @@ impl Expression {
                         "'{}' is not a function",
                         fc.name
                     ))),
+                    Some(Symbol::BuiltinFunction(_)) => Err(EvaluationError::InvalidOperation(
+                        "TODO: builtin function evaluation".to_string(),
+                    )),
                     None => {
                         // Evaluate arguments and keep as symbolic function call
                         let evaluated_args: Result<Vec<_>, _> = fc

@@ -37,6 +37,7 @@ pub enum EvaluationError {
     DivisionByZero,
     InvalidOperation(String),
     UnsupportedOperation(String),
+    CannotOverrideBuiltin(String),
 }
 
 impl error::Error for EvaluationError {}
@@ -56,6 +57,9 @@ impl fmt::Display for EvaluationError {
             EvaluationError::InvalidOperation(msg) => write!(f, "Invalid operation: {}", msg),
             EvaluationError::UnsupportedOperation(msg) => {
                 write!(f, "Unsupported operation: {}", msg)
+            }
+            EvaluationError::CannotOverrideBuiltin(msg) => {
+                write!(f, "Cannot override builtin function: {}", msg)
             }
         }
     }

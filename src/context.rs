@@ -30,6 +30,14 @@ impl fmt::Display for StatementResult {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum BuiltinFunction {
+    Sqrt,
+    Sin,
+    Cos,
+    Abs,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefinition {
     pub name: String,
     pub params: Vec<String>,
@@ -46,6 +54,7 @@ pub struct Variable {
 pub enum Symbol {
     Variable(Variable),
     Function(FunctionDefinition),
+    BuiltinFunction(BuiltinFunction),
 }
 
 #[derive(Debug, Clone)]
@@ -61,9 +70,26 @@ impl Default for Context {
 
 impl Context {
     pub fn new() -> Self {
-        Context {
-            table: HashMap::new(),
-        }
+        let mut table = HashMap::new();
+
+        table.insert(
+            "sqrt".to_string(),
+            Symbol::BuiltinFunction(BuiltinFunction::Sqrt),
+        );
+        table.insert(
+            "abs".to_string(),
+            Symbol::BuiltinFunction(BuiltinFunction::Abs),
+        );
+        table.insert(
+            "cos".to_string(),
+            Symbol::BuiltinFunction(BuiltinFunction::Cos),
+        );
+        table.insert(
+            "sin".to_string(),
+            Symbol::BuiltinFunction(BuiltinFunction::Sin),
+        );
+
+        Context { table }
     }
 
     pub fn compute(&mut self, line: &str) -> Result<StatementResult, ComputorError> {
@@ -94,6 +120,7 @@ impl Context {
                     }
                     println!(") = {}", body);
                 }
+                Symbol::BuiltinFunction(_) => {}
             }
         }
     }
@@ -134,11 +161,23 @@ impl Context {
         equation.solve()
     }
 
+    fn is_builtin(&self, name: &str) -> bool {
+        matches!(self.table.get(name), Some(Symbol::BuiltinFunction(_)))
+    }
+
     pub fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {
-        self.table.insert(name.to_lowercase(), symbol.clone());
+        let name = name.to_lowercase();
+
+        if self.is_builtin(&name) {
+            return Err(EvaluationError::CannotOverrideBuiltin(name));
+        }
+
+        self.table.insert(name, symbol.clone());
+
         let expression = match symbol {
             Symbol::Variable(Variable { expression, .. }) => expression,
             Symbol::Function(FunctionDefinition { body, .. }) => body,
+            Symbol::BuiltinFunction(_) => unreachable!(),
         };
 
         expression.evaluate(self)?.reduce()
