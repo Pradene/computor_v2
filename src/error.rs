@@ -1,7 +1,7 @@
 use std::error;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ParseError {
     InvalidSyntax(String),
     UnexpectedToken(String),
@@ -25,7 +25,7 @@ impl fmt::Display for ParseError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EvaluationError {
     UndefinedVariable(String),
     UndefinedFunction(String),
@@ -61,7 +61,7 @@ impl fmt::Display for EvaluationError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ComputorError {
     Parsing(String),
     Evaluation(EvaluationError),
