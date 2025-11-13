@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    context::{Context, Symbol, Variable},
+    context::{BuiltinFunction, Context, Symbol, Variable},
     error::EvaluationError,
 };
 
@@ -810,9 +810,23 @@ impl Expression {
                         "'{}' is not a function",
                         fc.name
                     ))),
-                    Some(Symbol::BuiltinFunction(_)) => Err(EvaluationError::InvalidOperation(
-                        "TODO: builtin function evaluation".to_string(),
-                    )),
+                    Some(Symbol::BuiltinFunction(function)) => {
+                        match function {
+                            BuiltinFunction::Rad => {
+                                if fc.args.len() != 1 {
+                                    return Err(EvaluationError::WrongArgumentCount { name: fc.name.clone(), expected: 1, got: fc.args.len() })
+                                }
+
+                                let arg = fc.args[0].evaluate_internal(context, scope)?;
+
+                                match arg {
+                                    Expression::Real(v) => Ok(Expression::Real(v.to_radians())),
+                                    _ => Err(EvaluationError::UnsupportedOperation("rad is only supported for real numbers".to_string())),
+                                }
+                            }
+                            _ => Err(EvaluationError::UndefinedFunction("TODO: implement builtin function".to_string())),
+                        }
+                    }
                     None => {
                         // Evaluate arguments and keep as symbolic function call
                         let evaluated_args: Result<Vec<_>, _> = fc

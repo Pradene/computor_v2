@@ -35,6 +35,7 @@ pub enum BuiltinFunction {
     Sin,
     Cos,
     Abs,
+    Rad,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -87,6 +88,10 @@ impl Context {
         table.insert(
             "sin".to_string(),
             Symbol::BuiltinFunction(BuiltinFunction::Sin),
+        );
+        table.insert(
+            "rad".to_string(),
+            Symbol::BuiltinFunction(BuiltinFunction::Rad),
         );
 
         Context { table }
