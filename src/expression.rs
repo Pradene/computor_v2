@@ -715,6 +715,33 @@ impl Expression {
             )),
         }
     }
+
+    pub fn norm(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Real(n) => Ok(Expression::Real(n.abs())),
+            Expression::Vector(vector) => {
+                let mut sum = Expression::Real(0.0);
+                for expression in vector {
+                    let x_squared = expression.clone().mul(expression.clone())?;
+                    sum = sum.add(x_squared)?;
+                }
+
+                sum.sqrt()
+            }
+            _ => Err(EvaluationError::InvalidOperation(
+                "Exp is not implemented for this type".to_string(),
+            )),
+        }   
+    }
+
+    pub fn rad(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Real(n) => Ok(Expression::Real(n.to_radians())),
+            _ => Err(EvaluationError::InvalidOperation(
+                "Rad is not implemented for this type".to_string(),
+            )),
+        }   
+    }
 }
 
 impl Expression {
@@ -818,11 +845,15 @@ impl Expression {
                                 }
 
                                 let arg = fc.args[0].evaluate_internal(context, scope)?;
-
-                                match arg {
-                                    Expression::Real(v) => Ok(Expression::Real(v.to_radians())),
-                                    _ => Err(EvaluationError::UnsupportedOperation("rad is only supported for real numbers".to_string())),
+                                arg.rad()
+                            }
+                            BuiltinFunction::Norm => {
+                                if fc.args.len() != 1 {
+                                    return Err(EvaluationError::WrongArgumentCount { name: fc.name.clone(), expected: 1, got: fc.args.len() })
                                 }
+
+                                let arg = fc.args[0].evaluate_internal(context, scope)?;
+                                arg.norm()
                             }
                         }
                     }

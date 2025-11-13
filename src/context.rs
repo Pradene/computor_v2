@@ -32,6 +32,7 @@ impl fmt::Display for StatementResult {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BuiltinFunction {
     Rad,
+    Norm,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -72,6 +73,10 @@ impl Context {
         table.insert(
             "rad".to_string(),
             Symbol::BuiltinFunction(BuiltinFunction::Rad),
+        );
+        table.insert(
+            "norm".to_string(),
+            Symbol::BuiltinFunction(BuiltinFunction::Norm),
         );
 
         Context { table }
