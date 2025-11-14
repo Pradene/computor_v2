@@ -237,10 +237,10 @@ mod tests {
     }
 
     #[test]
-    fn multiply_by_0() {
+    fn multiply_by_zero() {
         let mut context = Context::new();
         let result = context
-            .compute("0 * ( -5 + 7 ) = ?")
+            .compute("0 * ( -50 + 7 ) = ?")
             .expect("computation should succeed");
         assert_eq!(result, StatementResult::Value(Expression::Real(0.0)));
     }
