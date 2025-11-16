@@ -115,7 +115,7 @@ impl Context {
     }
 
     pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.table.get(name.to_lowercase().as_str())
+        self.table.get(name.to_ascii_lowercase().as_str())
     }
 
     pub fn print_table(&self) {
@@ -181,7 +181,7 @@ impl Context {
     }
 
     pub fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {
-        let name = name.to_lowercase();
+        let name = name.to_ascii_lowercase();
 
         if self.is_builtin(&name) {
             return Err(EvaluationError::CannotOverrideBuiltin(name));
