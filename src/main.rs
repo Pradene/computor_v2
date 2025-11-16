@@ -1,6 +1,7 @@
-use computor_v2::context::Context;
-
 use rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult};
+use std::process::Command;
+
+use computor_v2::context::Context;
 
 fn main() -> RustylineResult<()> {
     let config = Config::builder().history_ignore_dups(true)?.build();
@@ -22,6 +23,8 @@ fn main() -> RustylineResult<()> {
                     break;
                 } else if line == "table" {
                     context.print_table();
+                } else if line == "clear" {
+                    Command::new("clear").status().unwrap();
                 } else {
                     match context.compute(line) {
                         Ok(result) => println!("{}", result),
