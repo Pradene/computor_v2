@@ -35,6 +35,15 @@ pub enum BuiltinFunction {
     Norm,
 }
 
+impl BuiltinFunction {
+    pub fn name(&self) -> &str {
+        match self {
+            BuiltinFunction::Rad => "rad",
+            BuiltinFunction::Norm => "norm",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefinition {
     pub name: String,
@@ -53,6 +62,22 @@ pub enum Symbol {
     Variable(Variable),
     Function(FunctionDefinition),
     BuiltinFunction(BuiltinFunction),
+}
+
+impl Symbol {
+    pub fn name(&self) -> &str {
+        match self {
+            Symbol::Variable(variable) => &variable.name,
+            Symbol::Function(function) => &function.name,
+            Symbol::BuiltinFunction(builtin) => builtin.name(),
+        }
+    }
+}
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -171,6 +196,10 @@ impl Context {
         };
 
         expression.evaluate(self)?.reduce()
+    }
+
+    pub fn unset(&mut self, name: &str) -> Option<Symbol> {
+        self.table.remove(name.to_ascii_lowercase().as_str())
     }
 }
 

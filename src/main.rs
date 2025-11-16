@@ -25,6 +25,16 @@ fn main() -> RustylineResult<()> {
                     context.print_table();
                 } else if line == "clear" {
                     Command::new("clear").status().unwrap();
+                    let words: Vec<&str> = line.split_whitespace().collect();
+
+                    if words.len() != 2 {
+                        eprintln!("Usage: unset <name>");
+                    } else {
+                        match context.unset(words[1]) {
+                            Some(symbol) => println!("'{}' unset", symbol),
+                            None => eprintln!("Error: '{}' not found", words[1]),
+                        }
+                    }
                 } else {
                     match context.compute(line) {
                         Ok(result) => println!("{}", result),
