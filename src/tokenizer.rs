@@ -73,9 +73,19 @@ impl Tokenizer {
         }
 
         let number_str: String = chars[start..*position].iter().collect();
-        number_str
+        let num = number_str
             .parse::<f64>()
-            .map_err(|_| ParseError::InvalidNumber(number_str))
+            .map_err(|_| ParseError::InvalidNumber(number_str.clone()))?;
+
+        // Check for overflow/underflow
+        if num.is_infinite() {
+            return Err(ParseError::Overflow(format!(
+                "Number too large: {}",
+                number_str
+            )));
+        }
+
+        Ok(num)
     }
 
     fn read_identifier(chars: &[char], position: &mut usize) -> String {

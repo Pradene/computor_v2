@@ -9,6 +9,7 @@ pub enum ParseError {
     InvalidNumber(String),
     InvalidMatrix(String),
     InvalidVector(String),
+    Overflow(String),
 }
 
 impl error::Error for ParseError {}
@@ -21,6 +22,7 @@ impl fmt::Display for ParseError {
             ParseError::InvalidNumber(num) => write!(f, "Invalid number: {}", num),
             ParseError::InvalidMatrix(msg) => write!(f, "Invalid matrix: {}", msg),
             ParseError::InvalidVector(msg) => write!(f, "Invalid vector: {}", msg),
+            ParseError::Overflow(msg) => write!(f, "Number overflow: {}", msg),
         }
     }
 }
