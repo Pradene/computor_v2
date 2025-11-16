@@ -518,7 +518,7 @@ impl Expression {
 
                 Ok(Expression::Matrix(result, a_rows, b_cols))
             }
-            (left, right) => Ok(Expression::MatMul(Box::new(left), Box::new(right))),
+            (_, _) => Err(EvaluationError::InvalidOperation("Matrix multiplication not implemented for this type".to_string())),
         }
     }
 }
