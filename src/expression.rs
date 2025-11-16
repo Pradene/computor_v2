@@ -478,7 +478,9 @@ impl Mul for Expression {
                 Ok(Expression::Vector(result))
             }
 
-            (Expression::Vector(_), Expression::Vector(_)) => Err(EvaluationError::InvalidOperation("Cannot multiply vector by vector".to_string())),
+            (Expression::Vector(_), Expression::Vector(_)) => Err(
+                EvaluationError::InvalidOperation("Cannot multiply vector by vector".to_string()),
+            ),
 
             (left, right) => Ok(Expression::Mul(Box::new(left), Box::new(right))),
         }
