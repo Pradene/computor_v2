@@ -25,6 +25,7 @@ fn main() -> RustylineResult<()> {
                     context.print_table();
                 } else if line == "clear" {
                     Command::new("clear").status().unwrap();
+                } else if line.starts_with("unset") {
                     let words: Vec<&str> = line.split_whitespace().collect();
 
                     if words.len() != 2 {

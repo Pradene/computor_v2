@@ -1,7 +1,8 @@
-use crate::error::EvaluationError;
-use crate::expression::Expression;
-use std::collections::HashMap;
-use std::fmt;
+use {
+    crate::{error::EvaluationError, expression::Expression, EPSILON},
+    std::collections::HashMap,
+    std::fmt,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EquationSolution {
@@ -108,8 +109,8 @@ impl Equation {
     fn solve_constant_equation(&self) -> EquationSolution {
         // Check if the constant expression is zero
         let is_zero = match &self.expression {
-            Expression::Real(n) => n.abs() < f64::EPSILON,
-            Expression::Complex(r, i) => r.abs() < f64::EPSILON && i.abs() < f64::EPSILON,
+            Expression::Real(n) => n.abs() < EPSILON,
+            Expression::Complex(r, i) => r.abs() < EPSILON && i.abs() < EPSILON,
             _ => false,
         };
 
@@ -123,7 +124,7 @@ impl Equation {
     fn solve_degree_0(&self, coefficients: &HashMap<i32, f64>) -> EquationSolution {
         let c = coefficients.get(&0).copied().unwrap_or(0.0);
 
-        if c.abs() < f64::EPSILON {
+        if c.abs() < EPSILON {
             // 0 = 0, infinite solutions
             EquationSolution::Infinite
         } else {
@@ -142,7 +143,7 @@ impl Equation {
         let a = coefficients.get(&1).copied().unwrap_or(0.0);
         let b = coefficients.get(&0).copied().unwrap_or(0.0);
 
-        if a.abs() < f64::EPSILON {
+        if a.abs() < EPSILON {
             return self.solve_degree_0(coefficients);
         }
 
@@ -163,30 +164,30 @@ impl Equation {
         let b = coefficients.get(&1).copied().unwrap_or(0.0);
         let c = coefficients.get(&0).copied().unwrap_or(0.0);
 
-        if a.abs() < f64::EPSILON {
+        if a.abs() < EPSILON {
             return self.solve_degree_1(variable, coefficients);
         }
 
         // Calculate discriminant: Δ = b² - 4ac
         let discriminant = b * b - 4.0 * a * c;
 
-        if discriminant > f64::EPSILON {
+        if discriminant > EPSILON {
             // Two real solutions
             let sqrt_discriminant = discriminant.sqrt();
             let x1 = (-b + sqrt_discriminant) / (2.0 * a);
             let x2 = (-b - sqrt_discriminant) / (2.0 * a);
 
-            let x1 = if x1.abs() < f64::EPSILON { 0.0 } else { x1 };
-            let x2 = if x2.abs() < f64::EPSILON { 0.0 } else { x2 };
+            let x1 = if x1.abs() < EPSILON { 0.0 } else { x1 };
+            let x2 = if x2.abs() < EPSILON { 0.0 } else { x2 };
 
             EquationSolution::Finite {
                 variable,
                 solutions: vec![Expression::Real(x1), Expression::Real(x2)],
             }
-        } else if discriminant.abs() < f64::EPSILON {
+        } else if discriminant.abs() < EPSILON {
             // One real solution (double root)
             let x = -b / (2.0 * a);
-            let x = if x.abs() < f64::EPSILON { 0.0 } else { x };
+            let x = if x.abs() < EPSILON { 0.0 } else { x };
 
             EquationSolution::Finite {
                 variable,
@@ -198,8 +199,8 @@ impl Equation {
             let imag = (-discriminant).sqrt() / (2.0 * a);
 
             // Normalize the real part to avoid -0.0
-            let real = if real.abs() < f64::EPSILON { 0.0 } else { real };
-            let imag = if imag.abs() < f64::EPSILON { 0.0 } else { imag };
+            let real = if real.abs() < EPSILON { 0.0 } else { real };
+            let imag = if imag.abs() < EPSILON { 0.0 } else { imag };
 
             EquationSolution::Finite {
                 variable,
@@ -268,7 +269,7 @@ impl Equation {
             Expression::Real(n) => {
                 *coefficients.entry(0).or_insert(0.0) += sign * n;
             }
-            Expression::Complex(r, i) if i.abs() < f64::EPSILON => {
+            Expression::Complex(r, i) if i.abs() < EPSILON => {
                 *coefficients.entry(0).or_insert(0.0) += sign * r;
             }
             Expression::Variable(name) if name == variable => {
@@ -336,7 +337,7 @@ impl Equation {
     ) -> Result<(f64, i32), EvaluationError> {
         match expression {
             Expression::Real(n) => Ok((*n, 0)),
-            Expression::Complex(r, i) if i.abs() < f64::EPSILON => Ok((*r, 0)),
+            Expression::Complex(r, i) if i.abs() < EPSILON => Ok((*r, 0)),
             Expression::Variable(name) if name == variable => Ok((1.0, 1)),
             Expression::Paren(inner) => Self::extract_term(inner, variable),
             Expression::Neg(inner) => {

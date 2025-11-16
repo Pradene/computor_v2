@@ -7,6 +7,7 @@ use std::{
 use crate::{
     context::{BuiltinFunction, Context, Symbol, Variable},
     error::EvaluationError,
+    EPSILON,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,11 +42,11 @@ impl fmt::Display for Expression {
                 write!(f, "{}", n)?;
             }
             Expression::Complex(real, imag) => {
-                if real.abs() < f64::EPSILON {
+                if real.abs() < EPSILON {
                     write!(f, "{}i", imag)?;
-                } else if imag.abs() < f64::EPSILON {
+                } else if imag.abs() < EPSILON {
                     write!(f, "{}", real)?;
-                } else if imag.abs() >= f64::EPSILON {
+                } else if imag.abs() >= EPSILON {
                     write!(f, "{} + {}i", real, imag)?;
                 } else {
                     write!(f, "{} - {}i", real, -imag)?;
@@ -117,8 +118,8 @@ impl Expression {
 
     pub fn is_zero(&self) -> bool {
         match self {
-            Expression::Real(n) => n.abs() < f64::EPSILON,
-            Expression::Complex(r, i) => r.abs() < f64::EPSILON && i.abs() < f64::EPSILON,
+            Expression::Real(n) => n.abs() < EPSILON,
+            Expression::Complex(r, i) => r.abs() < EPSILON && i.abs() < EPSILON,
             _ => false,
         }
     }
@@ -126,7 +127,7 @@ impl Expression {
     pub fn is_real(&self) -> bool {
         match self {
             Expression::Real(_) => true,
-            Expression::Complex(_, i) => i.abs() < f64::EPSILON,
+            Expression::Complex(_, i) => i.abs() < EPSILON,
             _ => false,
         }
     }
@@ -155,7 +156,7 @@ impl Expression {
     }
 
     fn complex_div(a_r: f64, a_i: f64, b_r: f64, b_i: f64) -> Result<Expression, EvaluationError> {
-        if b_r.abs() < f64::EPSILON && b_i.abs() < f64::EPSILON {
+        if b_r.abs() < EPSILON && b_i.abs() < EPSILON {
             return Err(EvaluationError::DivisionByZero);
         }
 
@@ -167,12 +168,12 @@ impl Expression {
     }
 
     fn complex_pow(a_r: f64, a_i: f64, b_r: f64, b_i: f64) -> Expression {
-        let a_is_zero = a_r.abs() < f64::EPSILON && a_i.abs() < f64::EPSILON;
-        let b_is_zero = b_r.abs() < f64::EPSILON && b_i.abs() < f64::EPSILON;
-        let b_is_one = (b_r - 1.0).abs() < f64::EPSILON && b_i.abs() < f64::EPSILON;
+        let a_is_zero = a_r.abs() < EPSILON && a_i.abs() < EPSILON;
+        let b_is_zero = b_r.abs() < EPSILON && b_i.abs() < EPSILON;
+        let b_is_one = (b_r - 1.0).abs() < EPSILON && b_i.abs() < EPSILON;
 
         if a_is_zero {
-            if b_r > 0.0 || (b_i.abs() >= f64::EPSILON && b_r < f64::EPSILON) {
+            if b_r > 0.0 || (b_i.abs() >= EPSILON && b_r < EPSILON) {
                 return Expression::Complex(0.0, 0.0);
             } else if b_r < 0.0 {
                 return Expression::Complex(f64::INFINITY, f64::INFINITY);
@@ -205,14 +206,14 @@ impl Expression {
         let real = exp_real * w_ln_i.cos();
         let imag = exp_real * w_ln_i.sin();
 
-        let real = if real.abs() < f64::EPSILON { 0.0 } else { real };
-        let imag = if imag.abs() < f64::EPSILON { 0.0 } else { imag };
+        let real = if real.abs() < EPSILON { 0.0 } else { real };
+        let imag = if imag.abs() < EPSILON { 0.0 } else { imag };
 
         Expression::Complex(real, imag)
     }
 
     fn complex_sqrt(r: f64, i: f64) -> Expression {
-        if r.abs() < f64::EPSILON && i.abs() < f64::EPSILON {
+        if r.abs() < EPSILON && i.abs() < EPSILON {
             return Expression::Complex(0.0, 0.0);
         }
 
@@ -342,7 +343,7 @@ impl Mul for Expression {
         match (self, rhs) {
             (Expression::Real(a), Expression::Real(b)) => {
                 // Always return positive zero if either operand is zero
-                if a.abs() < f64::EPSILON || b.abs() < f64::EPSILON {
+                if a.abs() < EPSILON || b.abs() < EPSILON {
                     Ok(Expression::Real(0.0))
                 } else {
                     Ok(Expression::Real(a * b))
@@ -350,8 +351,8 @@ impl Mul for Expression {
             }
             (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
                 // Check if either is zero
-                let a_is_zero = a_r.abs() < f64::EPSILON && a_i.abs() < f64::EPSILON;
-                let b_is_zero = b_r.abs() < f64::EPSILON && b_i.abs() < f64::EPSILON;
+                let a_is_zero = a_r.abs() < EPSILON && a_i.abs() < EPSILON;
+                let b_is_zero = b_r.abs() < EPSILON && b_i.abs() < EPSILON;
 
                 if a_is_zero || b_is_zero {
                     Ok(Expression::Complex(0.0, 0.0))
@@ -360,16 +361,14 @@ impl Mul for Expression {
                 }
             }
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
-                if a.abs() < f64::EPSILON || (b_r.abs() < f64::EPSILON && b_i.abs() < f64::EPSILON)
-                {
+                if a.abs() < EPSILON || (b_r.abs() < EPSILON && b_i.abs() < EPSILON) {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a, 0.0, b_r, b_i))
                 }
             }
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
-                if (a_r.abs() < f64::EPSILON && a_i.abs() < f64::EPSILON) || b.abs() < f64::EPSILON
-                {
+                if (a_r.abs() < EPSILON && a_i.abs() < EPSILON) || b.abs() < EPSILON {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a_r, a_i, b, 0.0))
@@ -379,7 +378,7 @@ impl Mul for Expression {
             // Scalar * Vector
             (Expression::Real(s), Expression::Vector(v))
             | (Expression::Vector(v), Expression::Real(s)) => {
-                if s.abs() < f64::EPSILON {
+                if s.abs() < EPSILON {
                     // Return zero vector
                     let zero_vec = vec![Expression::Real(0.0); v.len()];
                     Ok(Expression::Vector(zero_vec))
@@ -393,7 +392,7 @@ impl Mul for Expression {
             }
             (Expression::Complex(r, i), Expression::Vector(v))
             | (Expression::Vector(v), Expression::Complex(r, i)) => {
-                if r.abs() < f64::EPSILON && i.abs() < f64::EPSILON {
+                if r.abs() < EPSILON && i.abs() < EPSILON {
                     let zero_vec = vec![Expression::Complex(0.0, 0.0); v.len()];
                     Ok(Expression::Vector(zero_vec))
                 } else {
@@ -408,7 +407,7 @@ impl Mul for Expression {
             // Scalar * Matrix
             (Expression::Real(s), Expression::Matrix(data, rows, cols))
             | (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
-                if s.abs() < f64::EPSILON {
+                if s.abs() < EPSILON {
                     let zero_matrix = vec![Expression::Real(0.0); rows * cols];
                     Ok(Expression::Matrix(zero_matrix, rows, cols))
                 } else {
@@ -421,7 +420,7 @@ impl Mul for Expression {
             }
             (Expression::Complex(r, i), Expression::Matrix(data, rows, cols))
             | (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
-                if r.abs() < f64::EPSILON && i.abs() < f64::EPSILON {
+                if r.abs() < EPSILON && i.abs() < EPSILON {
                     let zero_matrix = vec![Expression::Complex(0.0, 0.0); rows * cols];
                     Ok(Expression::Matrix(zero_matrix, rows, cols))
                 } else {
@@ -518,7 +517,9 @@ impl Expression {
 
                 Ok(Expression::Matrix(result, a_rows, b_cols))
             }
-            (_, _) => Err(EvaluationError::InvalidOperation("Matrix multiplication not implemented for this type".to_string())),
+            (_, _) => Err(EvaluationError::InvalidOperation(
+                "Matrix multiplication not implemented for this type".to_string(),
+            )),
         }
     }
 }
@@ -587,7 +588,7 @@ impl Rem for Expression {
 
         match (self, rhs) {
             (Expression::Real(a), Expression::Real(b)) => {
-                if b < f64::EPSILON {
+                if b < EPSILON {
                     return Err(EvaluationError::InvalidOperation(
                         "Modulo by zero".to_string(),
                     ));
@@ -604,9 +605,9 @@ impl Neg for Expression {
 
     fn neg(self) -> Self::Output {
         match self {
-            Expression::Real(n) if n.abs() < f64::EPSILON => Ok(Expression::Real(0.0)),
+            Expression::Real(n) if n.abs() < EPSILON => Ok(Expression::Real(0.0)),
             Expression::Real(n) => Ok(Expression::Real(-n)),
-            Expression::Complex(r, i) if r.abs() < f64::EPSILON && i.abs() < f64::EPSILON => {
+            Expression::Complex(r, i) if r.abs() < EPSILON && i.abs() < EPSILON => {
                 Ok(Expression::Complex(0.0, 0.0))
             }
             Expression::Complex(r, i) => Ok(Expression::Complex(-r, -i)),
@@ -774,7 +775,7 @@ impl Expression {
         match self {
             Expression::Real(_) => Ok(self.clone()),
             Expression::Complex(real, imag) => {
-                if imag.abs() < f64::EPSILON {
+                if imag.abs() < EPSILON {
                     Ok(Expression::Real(*real))
                 } else {
                     Ok(self.clone())
@@ -962,7 +963,7 @@ impl Expression {
     fn collect_terms(&self) -> Result<Expression, EvaluationError> {
         match self {
             Expression::Complex(real, imag) => {
-                if imag.abs() < f64::EPSILON {
+                if imag.abs() < EPSILON {
                     Ok(Expression::Real(*real))
                 } else {
                     Ok(self.clone())
@@ -1019,9 +1020,7 @@ impl Expression {
             }
             Expression::Neg(inner) => inner.extract_terms(-sign),
             Expression::Real(n) => Ok(vec![Term::constant(sign * n)]),
-            Expression::Complex(r, i) if i.abs() < f64::EPSILON => {
-                Ok(vec![Term::constant(sign * r)])
-            }
+            Expression::Complex(r, i) if i.abs() < EPSILON => Ok(vec![Term::constant(sign * r)]),
             Expression::Mul(..) => {
                 let (coeff, expression) = self.extract_coefficient();
                 Ok(vec![Term::new(sign * coeff, expression)])
@@ -1058,7 +1057,7 @@ impl Expression {
             Expression::Real(n) => {
                 *coefficient *= n;
             }
-            Expression::Complex(r, i) if i.abs() < f64::EPSILON => {
+            Expression::Complex(r, i) if i.abs() < EPSILON => {
                 *coefficient *= r;
             }
             Expression::Mul(left, right) => {
@@ -1088,7 +1087,7 @@ impl Expression {
         let mut negative_terms: Vec<Term> = Vec::new();
 
         for term in combined.into_values() {
-            if term.coefficient.abs() < f64::EPSILON {
+            if term.coefficient.abs() < EPSILON {
                 continue; // Skip zero terms
             }
 
@@ -1152,19 +1151,19 @@ impl Term {
     fn to_expression(&self) -> Expression {
         let coeff_abs = self.coefficient.abs();
 
-        if coeff_abs < f64::EPSILON {
+        if coeff_abs < EPSILON {
             return Expression::Real(0.0);
         }
 
         // Check if expression is just the constant 1.0
-        if matches!(self.expression, Expression::Real(n) if (n - 1.0).abs() < f64::EPSILON) {
+        if matches!(self.expression, Expression::Real(n) if (n - 1.0).abs() < EPSILON) {
             return Expression::Real(self.coefficient);
         }
 
         let abs_coeff = self.coefficient.abs();
         let is_negative = self.coefficient < 0.0;
 
-        let base_expr = if (abs_coeff - 1.0).abs() < f64::EPSILON {
+        let base_expr = if (abs_coeff - 1.0).abs() < EPSILON {
             // Coefficient is ±1, just return the expression (or its negation)
             self.expression.clone()
         } else {
