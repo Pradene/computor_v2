@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    context::{BuiltinFunction, Context, Symbol, Variable},
+    context::{Context, Symbol, Variable},
     error::EvaluationError,
     EPSILON,
 };
@@ -855,32 +855,18 @@ impl Expression {
                         "'{}' is not a function",
                         fc.name
                     ))),
-                    Some(Symbol::BuiltinFunction(function)) => match function {
-                        BuiltinFunction::Rad => {
-                            if fc.args.len() != 1 {
-                                return Err(EvaluationError::WrongArgumentCount {
-                                    name: fc.name.clone(),
-                                    expected: 1,
-                                    got: fc.args.len(),
-                                });
-                            }
-
-                            let arg = fc.args[0].evaluate_internal(context, scope)?;
-                            arg.rad()
+                    Some(Symbol::BuiltinFunction(function)) => {
+                        if fc.args.len() != function.arity() {
+                            return Err(EvaluationError::WrongArgumentCount {
+                                name: fc.name.clone(),
+                                expected: function.arity(),
+                                got: fc.args.len(),
+                            });
                         }
-                        BuiltinFunction::Norm => {
-                            if fc.args.len() != 1 {
-                                return Err(EvaluationError::WrongArgumentCount {
-                                    name: fc.name.clone(),
-                                    expected: 1,
-                                    got: fc.args.len(),
-                                });
-                            }
 
-                            let arg = fc.args[0].evaluate_internal(context, scope)?;
-                            arg.norm()
-                        }
-                    },
+                        let arg = fc.args[0].evaluate_internal(context, scope)?;
+                        function.call(arg)
+                    }
                     None => {
                         // Evaluate arguments and keep as symbolic function call
                         let evaluated_args: Result<Vec<_>, _> = fc

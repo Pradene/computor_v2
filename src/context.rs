@@ -33,6 +33,7 @@ impl fmt::Display for StatementResult {
 pub enum BuiltinFunction {
     Rad,
     Norm,
+    Abs,
 }
 
 impl BuiltinFunction {
@@ -40,6 +41,23 @@ impl BuiltinFunction {
         match self {
             BuiltinFunction::Rad => "rad",
             BuiltinFunction::Norm => "norm",
+            BuiltinFunction::Abs => "abs",
+        }
+    }
+
+    pub fn arity(&self) -> usize {
+        match self {
+            BuiltinFunction::Rad => 1,
+            BuiltinFunction::Norm => 1,
+            BuiltinFunction::Abs => 1,
+        }
+    }
+
+    pub fn call(&self, arg: Expression) -> Result<Expression, EvaluationError> {
+        match self {
+            BuiltinFunction::Rad => arg.rad(),
+            BuiltinFunction::Norm => arg.norm(),
+            BuiltinFunction::Abs => arg.abs(),
         }
     }
 }
@@ -93,16 +111,16 @@ impl Default for Context {
 
 impl Context {
     pub fn new() -> Self {
-        let mut table = HashMap::new();
+        const BUILTINS: &[BuiltinFunction] = &[
+            BuiltinFunction::Rad,
+            BuiltinFunction::Norm,
+            BuiltinFunction::Abs,
+        ];
 
-        table.insert(
-            "rad".to_string(),
-            Symbol::BuiltinFunction(BuiltinFunction::Rad),
-        );
-        table.insert(
-            "norm".to_string(),
-            Symbol::BuiltinFunction(BuiltinFunction::Norm),
-        );
+        let table = BUILTINS
+            .iter()
+            .map(|f| (f.name().to_string(), Symbol::BuiltinFunction(f.clone())))
+            .collect();
 
         Context { table }
     }
