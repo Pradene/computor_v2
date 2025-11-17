@@ -752,6 +752,45 @@ impl Expression {
         }
     }
 
+    pub fn cos(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Real(n) => {
+                let cos = n.cos();
+                let res = if cos < EPSILON { 0.0 } else { cos };
+                Ok(Expression::Real(res))
+            }
+            _ => Err(EvaluationError::InvalidOperation(
+                "Rad is not implemented for this type".to_string(),
+            )),
+        }
+    }
+
+    pub fn sin(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Real(n) => {
+                let sin = n.sin();
+                let res = if sin < EPSILON { 0.0 } else { sin };
+                Ok(Expression::Real(res))
+            }
+            _ => Err(EvaluationError::InvalidOperation(
+                "Rad is not implemented for this type".to_string(),
+            )),
+        }
+    }
+
+    pub fn tan(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Real(n) => {
+                let tan = n.tan();
+                let res = if tan < EPSILON { 0.0 } else { tan };
+                Ok(Expression::Real(res))
+            }
+            _ => Err(EvaluationError::InvalidOperation(
+                "Rad is not implemented for this type".to_string(),
+            )),
+        }
+    }
+
     pub fn rad(&self) -> Result<Expression, EvaluationError> {
         match self {
             Expression::Real(n) => Ok(Expression::Real(n.to_radians())),

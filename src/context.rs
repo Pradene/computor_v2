@@ -34,6 +34,10 @@ pub enum BuiltinFunction {
     Rad,
     Norm,
     Abs,
+    Sqrt,
+    Cos,
+    Sin,
+    Tan,
 }
 
 impl BuiltinFunction {
@@ -42,14 +46,23 @@ impl BuiltinFunction {
             BuiltinFunction::Rad => "rad",
             BuiltinFunction::Norm => "norm",
             BuiltinFunction::Abs => "abs",
+            BuiltinFunction::Sqrt => "sqrt",
+            BuiltinFunction::Cos => "cos",
+            BuiltinFunction::Sin => "sin",
+            BuiltinFunction::Tan => "tan",
         }
     }
 
     pub fn arity(&self) -> usize {
         match self {
-            BuiltinFunction::Rad => 1,
-            BuiltinFunction::Norm => 1,
-            BuiltinFunction::Abs => 1,
+            // BuiltinFunction::Rad => 1,
+            // BuiltinFunction::Norm => 1,
+            // BuiltinFunction::Abs => 1,
+            // BuiltinFunction::Sqrt => 1,
+            // BuiltinFunction::Cos => 1,
+            // BuiltinFunction::Sin => 1,
+            // BuiltinFunction::Tan => 1,
+            _ => 1,
         }
     }
 
@@ -58,6 +71,10 @@ impl BuiltinFunction {
             BuiltinFunction::Rad => arg.rad(),
             BuiltinFunction::Norm => arg.norm(),
             BuiltinFunction::Abs => arg.abs(),
+            BuiltinFunction::Sqrt => arg.sqrt(),
+            BuiltinFunction::Cos => arg.cos(),
+            BuiltinFunction::Sin => arg.sin(),
+            BuiltinFunction::Tan => arg.tan(),
         }
     }
 }
@@ -115,6 +132,10 @@ impl Context {
             BuiltinFunction::Rad,
             BuiltinFunction::Norm,
             BuiltinFunction::Abs,
+            BuiltinFunction::Sqrt,
+            BuiltinFunction::Cos,
+            BuiltinFunction::Sin,
+            BuiltinFunction::Tan,
         ];
 
         let table = BUILTINS
