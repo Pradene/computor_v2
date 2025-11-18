@@ -169,7 +169,7 @@ impl Tokenizer {
                     *position += 1;
                     Ok(Token::Comma)
                 }
-                'i' => {
+                _ if ch == 'i' || ch == 'I' => {
                     if let Some(next) = Self::peek_char(chars, *position, 1) {
                         if next.is_ascii_alphabetic() {
                             let ident = Self::read_identifier(chars, position);
