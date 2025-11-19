@@ -242,54 +242,57 @@ impl Add for Expression {
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a + b)),
+
             (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
                 Ok(Self::complex_add(a_r, a_i, b_r, b_i))
             }
+
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
                 Ok(Self::complex_add(a, 0.0, b_r, b_i))
             }
+
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
                 Ok(Self::complex_add(a_r, a_i, b, 0.0))
             }
+
             (Expression::Vector(a), Expression::Vector(b)) => {
                 if a.len() != b.len() {
                     return Err(EvaluationError::InvalidOperation(
-                        "Vector addition: vectors must have the same dimension".to_string(),
+                        format!("Vector addition: both vectors must have the same dimension (got {} and {})", a.len(), b.len()),
                     ));
                 }
-
                 let result: Result<Vec<Expression>, _> = a
                     .iter()
                     .zip(b.iter())
                     .map(|(x, y)| x.clone().add(y.clone()))
                     .collect();
-
                 Ok(Expression::Vector(result?))
             }
-            (vector @ Expression::Vector(_), other) | (other, vector @ Expression::Vector(_)) =>
-                Err(EvaluationError::InvalidOperation(
-                    format!("Invalid operation between {} and {}: vectors require compatible operand types", vector, other)
-                )),
+
             (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
-                        "Matrix addition: matrices must have the same dimensions".to_string(),
+                        format!("Matrix addition: both matrices must have the same dimensions (got {}×{} and {}×{})", 
+                            a_rows, a_cols, b_rows, b_cols),
                     ));
                 }
-
                 let result: Result<Vec<Expression>, _> = a
                     .iter()
                     .zip(b.iter())
                     .map(|(x, y)| x.clone().add(y.clone()))
                     .collect();
-
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
             }
-            (matrix @ Expression::Matrix(_, _, _), other) | (other, matrix @ Expression::Matrix(_, _, _)) =>
-                Err(EvaluationError::InvalidOperation(
-                    format!("Invalid operation between {} and {}: matrices require compatible operand types", matrix, other)
-                )),
-            (left, right) => Ok(Expression::Add(Box::new(left), Box::new(right))),
+
+            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
+            | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
+                Ok(Expression::Add(Box::new(left), Box::new(right)))
+            }
+
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "Cannot add {} and {}: incompatible types",
+                left, right
+            ))),
         }
     }
 }
@@ -300,54 +303,57 @@ impl Sub for Expression {
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a - b)),
+
             (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
                 Ok(Self::complex_sub(a_r, a_i, b_r, b_i))
             }
+
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
                 Ok(Self::complex_sub(a, 0.0, b_r, b_i))
             }
+
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
                 Ok(Self::complex_sub(a_r, a_i, b, 0.0))
             }
+
             (Expression::Vector(a), Expression::Vector(b)) => {
                 if a.len() != b.len() {
                     return Err(EvaluationError::InvalidOperation(
-                        "Vector subtraction: vectors must have the same dimension".to_string(),
+                        format!("Vector subtraction: both vectors must have the same dimension (got {} and {})", a.len(), b.len()),
                     ));
                 }
-
                 let result: Result<Vec<Expression>, _> = a
                     .iter()
                     .zip(b.iter())
                     .map(|(x, y)| x.clone().sub(y.clone()))
                     .collect();
-
                 Ok(Expression::Vector(result?))
             }
-            (vector @ Expression::Vector(_), other) | (other, vector @ Expression::Vector(_)) =>
-                Err(EvaluationError::InvalidOperation(
-                    format!("Invalid operation between {} and {}: vectors require compatible operand types", vector, other)
-                )),
+
             (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
-                        "Matrix subtraction: matrices must have the same dimensions".to_string(),
+                        format!("Matrix subtraction: both matrices must have the same dimensions (got {}×{} and {}×{})", 
+                            a_rows, a_cols, b_rows, b_cols),
                     ));
                 }
-
                 let result: Result<Vec<Expression>, _> = a
                     .iter()
                     .zip(b.iter())
                     .map(|(x, y)| x.clone().sub(y.clone()))
                     .collect();
-
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
             }
-            (matrix @ Expression::Matrix(_, _, _), other) | (other, matrix @ Expression::Matrix(_, _, _)) =>
-                Err(EvaluationError::InvalidOperation(
-                    format!("Invalid operation between {} and {}: matrices require compatible operand types", matrix, other)
-                )),
-            (left, right) => Ok(Expression::Sub(Box::new(left), Box::new(right))),
+
+            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
+            | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
+                Ok(Expression::Sub(Box::new(left), Box::new(right)))
+            }
+
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "Cannot subtract {} from {}: incompatible types",
+                right, left
+            ))),
         }
     }
 }
@@ -357,34 +363,35 @@ impl Mul for Expression {
 
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
+            // Scalar * Scalar
             (Expression::Real(a), Expression::Real(b)) => {
-                // Always return positive zero if either operand is zero
-                if a.abs() < EPSILON || b.abs() < EPSILON {
+                if a.abs() < crate::EPSILON || b.abs() < crate::EPSILON {
                     Ok(Expression::Real(0.0))
                 } else {
                     Ok(Expression::Real(a * b))
                 }
             }
-            (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
-                // Check if either is zero
-                let a_is_zero = a_r.abs() < EPSILON && a_i.abs() < EPSILON;
-                let b_is_zero = b_r.abs() < EPSILON && b_i.abs() < EPSILON;
 
+            (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
+                let a_is_zero = a_r.abs() < crate::EPSILON && a_i.abs() < crate::EPSILON;
+                let b_is_zero = b_r.abs() < crate::EPSILON && b_i.abs() < crate::EPSILON;
                 if a_is_zero || b_is_zero {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a_r, a_i, b_r, b_i))
                 }
             }
+
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
-                if a.abs() < EPSILON || (b_r.abs() < EPSILON && b_i.abs() < EPSILON) {
+                if a.abs() < crate::EPSILON || (b_r.abs() < crate::EPSILON && b_i.abs() < crate::EPSILON) {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a, 0.0, b_r, b_i))
                 }
             }
+
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
-                if (a_r.abs() < EPSILON && a_i.abs() < EPSILON) || b.abs() < EPSILON {
+                if (a_r.abs() < crate::EPSILON && a_i.abs() < crate::EPSILON) || b.abs() < crate::EPSILON {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a_r, a_i, b, 0.0))
@@ -392,10 +399,9 @@ impl Mul for Expression {
             }
 
             // Scalar * Vector
-            (Expression::Real(s), Expression::Vector(v))
-            | (Expression::Vector(v), Expression::Real(s)) => {
-                if s.abs() < EPSILON {
-                    // Return zero vector
+            (Expression::Real(s), Expression::Vector(v)) |
+            (Expression::Vector(v), Expression::Real(s)) => {
+                if s.abs() < crate::EPSILON {
                     let zero_vec = vec![Expression::Real(0.0); v.len()];
                     Ok(Expression::Vector(zero_vec))
                 } else {
@@ -406,9 +412,10 @@ impl Mul for Expression {
                     Ok(Expression::Vector(result?))
                 }
             }
-            (Expression::Complex(r, i), Expression::Vector(v))
-            | (Expression::Vector(v), Expression::Complex(r, i)) => {
-                if r.abs() < EPSILON && i.abs() < EPSILON {
+
+            (Expression::Complex(r, i), Expression::Vector(v)) |
+            (Expression::Vector(v), Expression::Complex(r, i)) => {
+                if r.abs() < crate::EPSILON && i.abs() < crate::EPSILON {
                     let zero_vec = vec![Expression::Complex(0.0, 0.0); v.len()];
                     Ok(Expression::Vector(zero_vec))
                 } else {
@@ -421,9 +428,9 @@ impl Mul for Expression {
             }
 
             // Scalar * Matrix
-            (Expression::Real(s), Expression::Matrix(data, rows, cols))
-            | (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
-                if s.abs() < EPSILON {
+            (Expression::Real(s), Expression::Matrix(data, rows, cols)) |
+            (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
+                if s.abs() < crate::EPSILON {
                     let zero_matrix = vec![Expression::Real(0.0); rows * cols];
                     Ok(Expression::Matrix(zero_matrix, rows, cols))
                 } else {
@@ -434,9 +441,10 @@ impl Mul for Expression {
                     Ok(Expression::Matrix(result?, rows, cols))
                 }
             }
-            (Expression::Complex(r, i), Expression::Matrix(data, rows, cols))
-            | (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
-                if r.abs() < EPSILON && i.abs() < EPSILON {
+
+            (Expression::Complex(r, i), Expression::Matrix(data, rows, cols)) |
+            (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
+                if r.abs() < crate::EPSILON && i.abs() < crate::EPSILON {
                     let zero_matrix = vec![Expression::Complex(0.0, 0.0); rows * cols];
                     Ok(Expression::Matrix(zero_matrix, rows, cols))
                 } else {
@@ -448,20 +456,19 @@ impl Mul for Expression {
                 }
             }
 
-            // Hadamard product (element-wise) for matrices
+            // Matrix * Matrix (Hadamard product)
             (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
-                        "Hadamard product: matrices must have the same dimensions".to_string(),
+                        format!("Hadamard product: matrices must have the same dimensions (got {}×{} and {}×{})", 
+                            a_rows, a_cols, b_rows, b_cols),
                     ));
                 }
-
                 let result: Result<Vec<Expression>, _> = a
                     .iter()
                     .zip(b.iter())
                     .map(|(x, y)| x.clone().mul(y.clone())?.reduce())
                     .collect();
-
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
             }
 
@@ -469,35 +476,46 @@ impl Mul for Expression {
             (Expression::Matrix(a, rows, cols), Expression::Vector(b)) => {
                 if cols != b.len() {
                     return Err(EvaluationError::InvalidOperation(
-                        "Matrix-Vector multiplication: matrix columns must equal vector size"
-                            .to_string(),
+                        format!("Matrix-Vector multiplication: matrix has {} columns but vector has {} elements", 
+                            cols, b.len()),
                     ));
                 }
-
                 let mut result = Vec::with_capacity(rows);
-
                 for i in 0..rows {
                     let mut sum = Expression::Complex(0.0, 0.0);
                     let row_start = i * cols;
-
                     for k in 0..cols {
                         let left = a[row_start + k].clone();
                         let right = b[k].clone();
                         let product = left.mul(right)?;
                         sum = sum.add(product)?;
                     }
-
                     result.push(sum.reduce()?);
                 }
-
                 Ok(Expression::Vector(result))
             }
 
-            (Expression::Vector(_), Expression::Vector(_)) => Err(
-                EvaluationError::InvalidOperation("Cannot multiply vector by vector".to_string()),
-            ),
+            // Invalid combinations
+            (Expression::Vector(_), Expression::Vector(_)) => {
+                Err(EvaluationError::InvalidOperation(
+                    "Cannot multiply two vectors element-wise: use matrix multiplication '**' or dot product instead".to_string(),
+                ))
+            }
 
-            (left, right) => Ok(Expression::Mul(Box::new(left), Box::new(right))),
+            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right) |
+            (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
+                // Keep as unevaluated expression
+                Ok(Expression::Mul(Box::new(left), Box::new(right)))
+            }
+
+            (left, right) => {
+                Err(EvaluationError::InvalidOperation(
+                    format!("Cannot multiply {} and {}: incompatible types", 
+                        left,
+                        right
+                    ),
+                ))
+            }
         }
     }
 }
@@ -551,15 +569,19 @@ impl Div for Expression {
 
         match (self, rhs) {
             (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a / b)),
+
             (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
                 Self::complex_div(a_r, a_i, b_r, b_i)
             }
+
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
                 Self::complex_div(a, 0.0, b_r, b_i)
             }
+
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
                 Self::complex_div(a_r, a_i, b, 0.0)
             }
+
             (Expression::Vector(v), Expression::Real(s)) => {
                 let result: Result<Vec<Expression>, _> = v
                     .iter()
@@ -567,6 +589,7 @@ impl Div for Expression {
                     .collect();
                 Ok(Expression::Vector(result?))
             }
+
             (Expression::Vector(v), Expression::Complex(r, i)) => {
                 let result: Result<Vec<Expression>, _> = v
                     .iter()
@@ -574,6 +597,7 @@ impl Div for Expression {
                     .collect();
                 Ok(Expression::Vector(result?))
             }
+
             (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
                 let result: Result<Vec<Expression>, _> = data
                     .iter()
@@ -581,6 +605,7 @@ impl Div for Expression {
                     .collect();
                 Ok(Expression::Matrix(result?, rows, cols))
             }
+
             (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
                 let result: Result<Vec<Expression>, _> = data
                     .iter()
@@ -588,7 +613,16 @@ impl Div for Expression {
                     .collect();
                 Ok(Expression::Matrix(result?, rows, cols))
             }
-            (left, right) => Ok(Expression::Div(Box::new(left), Box::new(right))),
+
+            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
+            | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
+                Ok(Expression::Div(Box::new(left), Box::new(right)))
+            }
+
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "Cannot divide {} by {}: incompatible types",
+                left, right
+            ))),
         }
     }
 }
@@ -604,15 +638,12 @@ impl Rem for Expression {
         }
 
         match (self, rhs) {
-            (Expression::Real(a), Expression::Real(b)) => {
-                if b < EPSILON {
-                    return Err(EvaluationError::InvalidOperation(
-                        "Modulo by zero".to_string(),
-                    ));
-                }
-                Ok(Expression::Real(a % b))
-            }
-            (left, right) => Ok(Expression::Mod(Box::new(left), Box::new(right))),
+            (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a % b)),
+
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "Modulo only works with real numbers: got {} and {}",
+                left, right
+            ))),
         }
     }
 }

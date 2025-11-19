@@ -9,7 +9,7 @@ pub struct Parser;
 
 impl Parser {
     pub fn parse(line: &str) -> Result<Statement, ParseError> {
-        let tokens = Tokenizer::tokenize(&line)?;
+        let tokens = Tokenizer::tokenize(line)?;
 
         if tokens.is_empty() {
             return Err(ParseError::InvalidSyntax(

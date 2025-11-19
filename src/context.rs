@@ -54,7 +54,7 @@ impl BuiltinFunction {
     }
 
     pub fn arity(&self) -> usize {
-        match self {
+        // match self {
             // BuiltinFunction::Rad => 1,
             // BuiltinFunction::Norm => 1,
             // BuiltinFunction::Abs => 1,
@@ -62,8 +62,9 @@ impl BuiltinFunction {
             // BuiltinFunction::Cos => 1,
             // BuiltinFunction::Sin => 1,
             // BuiltinFunction::Tan => 1,
-            _ => 1,
-        }
+        // }
+
+        1
     }
 
     pub fn call(&self, arg: Expression) -> Result<Expression, EvaluationError> {
