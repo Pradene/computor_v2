@@ -139,6 +139,27 @@ impl Expression {
     pub fn is_function(&self) -> bool {
         matches!(self, Expression::FunctionCall(_))
     }
+
+    pub fn contains_variable(&self, var_name: &str) -> bool {
+        match self {
+            Expression::Real(_) | Expression::Complex(_, _) => false,
+            Expression::Variable(name) => name == var_name,
+            Expression::Vector(v) => v.iter().any(|e| e.contains_variable(var_name)),
+            Expression::Matrix(data, _, _) => data.iter().any(|e| e.contains_variable(var_name)),
+            Expression::FunctionCall(fc) => fc.args.iter().any(|e| e.contains_variable(var_name)),
+            Expression::Paren(inner) => inner.contains_variable(var_name),
+            Expression::Neg(inner) => inner.contains_variable(var_name),
+            Expression::Add(left, right)
+            | Expression::Sub(left, right)
+            | Expression::Mul(left, right)
+            | Expression::MatMul(left, right)
+            | Expression::Div(left, right)
+            | Expression::Mod(left, right)
+            | Expression::Pow(left, right) => {
+                left.contains_variable(var_name) || right.contains_variable(var_name)
+            }
+        }
+    }
 }
 
 // Complex number helpers
@@ -289,10 +310,18 @@ impl Add for Expression {
                 Ok(Expression::Add(Box::new(left), Box::new(right)))
             }
 
-            (left, right) => Err(EvaluationError::InvalidOperation(format!(
-                "Cannot add {} and {}: incompatible types",
-                left, right
-            ))),
+            (left @ (Expression::Matrix(_, _, _) | Expression::Vector(_)), right)
+            | (left, right @ (Expression::Matrix(_, _, _) | Expression::Vector(_))) => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot add {} and {}: incompatible types",
+                    left, right
+                )))
+            }
+
+            (left, right) => Ok(Expression::Add(
+                Box::new(left.clone()),
+                Box::new(right.clone()),
+            )),
         }
     }
 }
@@ -350,10 +379,18 @@ impl Sub for Expression {
                 Ok(Expression::Sub(Box::new(left), Box::new(right)))
             }
 
-            (left, right) => Err(EvaluationError::InvalidOperation(format!(
-                "Cannot subtract {} from {}: incompatible types",
-                right, left
-            ))),
+            (left @ (Expression::Matrix(_, _, _) | Expression::Vector(_)), right)
+            | (left, right @ (Expression::Matrix(_, _, _) | Expression::Vector(_))) => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot add {} and {}: incompatible types",
+                    left, right
+                )))
+            }
+
+            (left, right) => Ok(Expression::Add(
+                Box::new(left.clone()),
+                Box::new(right.clone()),
+            )),
         }
     }
 }
@@ -383,7 +420,9 @@ impl Mul for Expression {
             }
 
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
-                if a.abs() < crate::EPSILON || (b_r.abs() < crate::EPSILON && b_i.abs() < crate::EPSILON) {
+                if a.abs() < crate::EPSILON
+                    || (b_r.abs() < crate::EPSILON && b_i.abs() < crate::EPSILON)
+                {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a, 0.0, b_r, b_i))
@@ -391,7 +430,9 @@ impl Mul for Expression {
             }
 
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
-                if (a_r.abs() < crate::EPSILON && a_i.abs() < crate::EPSILON) || b.abs() < crate::EPSILON {
+                if (a_r.abs() < crate::EPSILON && a_i.abs() < crate::EPSILON)
+                    || b.abs() < crate::EPSILON
+                {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a_r, a_i, b, 0.0))
@@ -399,8 +440,8 @@ impl Mul for Expression {
             }
 
             // Scalar * Vector
-            (Expression::Real(s), Expression::Vector(v)) |
-            (Expression::Vector(v), Expression::Real(s)) => {
+            (Expression::Real(s), Expression::Vector(v))
+            | (Expression::Vector(v), Expression::Real(s)) => {
                 if s.abs() < crate::EPSILON {
                     let zero_vec = vec![Expression::Real(0.0); v.len()];
                     Ok(Expression::Vector(zero_vec))
@@ -413,8 +454,8 @@ impl Mul for Expression {
                 }
             }
 
-            (Expression::Complex(r, i), Expression::Vector(v)) |
-            (Expression::Vector(v), Expression::Complex(r, i)) => {
+            (Expression::Complex(r, i), Expression::Vector(v))
+            | (Expression::Vector(v), Expression::Complex(r, i)) => {
                 if r.abs() < crate::EPSILON && i.abs() < crate::EPSILON {
                     let zero_vec = vec![Expression::Complex(0.0, 0.0); v.len()];
                     Ok(Expression::Vector(zero_vec))
@@ -428,8 +469,8 @@ impl Mul for Expression {
             }
 
             // Scalar * Matrix
-            (Expression::Real(s), Expression::Matrix(data, rows, cols)) |
-            (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
+            (Expression::Real(s), Expression::Matrix(data, rows, cols))
+            | (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
                 if s.abs() < crate::EPSILON {
                     let zero_matrix = vec![Expression::Real(0.0); rows * cols];
                     Ok(Expression::Matrix(zero_matrix, rows, cols))
@@ -442,8 +483,8 @@ impl Mul for Expression {
                 }
             }
 
-            (Expression::Complex(r, i), Expression::Matrix(data, rows, cols)) |
-            (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
+            (Expression::Complex(r, i), Expression::Matrix(data, rows, cols))
+            | (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
                 if r.abs() < crate::EPSILON && i.abs() < crate::EPSILON {
                     let zero_matrix = vec![Expression::Complex(0.0, 0.0); rows * cols];
                     Ok(Expression::Matrix(zero_matrix, rows, cols))
@@ -498,24 +539,23 @@ impl Mul for Expression {
             // Invalid combinations
             (Expression::Vector(_), Expression::Vector(_)) => {
                 Err(EvaluationError::InvalidOperation(
-                    "Cannot multiply two vectors element-wise: use matrix multiplication '**' or dot product instead".to_string(),
+                    "Cannot multiply two vectors element-wise".to_string(),
                 ))
             }
+            (Expression::Vector(_), Expression::Matrix(_, _, _)) => Err(
+                EvaluationError::InvalidOperation("Cannot multiply matriux by vector".to_string()),
+            ),
 
-            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right) |
-            (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
+            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
+            | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
                 // Keep as unevaluated expression
                 Ok(Expression::Mul(Box::new(left), Box::new(right)))
             }
 
-            (left, right) => {
-                Err(EvaluationError::InvalidOperation(
-                    format!("Cannot multiply {} and {}: incompatible types", 
-                        left,
-                        right
-                    ),
-                ))
-            }
+            (left, right) => Ok(Expression::Mul(
+                Box::new(left.clone()),
+                Box::new(right.clone()),
+            )),
         }
     }
 }
@@ -550,6 +590,17 @@ impl Expression {
                 }
 
                 Ok(Expression::Matrix(result, a_rows, b_cols))
+            }
+            (
+                left @ (Expression::Variable(_) | Expression::FunctionCall(_)),
+                right @ Expression::Matrix(_, _, _),
+            )
+            | (
+                left @ Expression::Matrix(_, _, _),
+                right @ (Expression::Variable(_) | Expression::FunctionCall(_)),
+            ) => {
+                // Keep as unevaluated expression
+                Ok(Expression::MatMul(Box::new(left), Box::new(right)))
             }
             (left, right) => Err(EvaluationError::InvalidOperation(format!(
                 "Matrix multiplication: impossible between {} and {}",
@@ -619,10 +670,10 @@ impl Div for Expression {
                 Ok(Expression::Div(Box::new(left), Box::new(right)))
             }
 
-            (left, right) => Err(EvaluationError::InvalidOperation(format!(
-                "Cannot divide {} by {}: incompatible types",
-                left, right
-            ))),
+            (left, right) => Ok(Expression::Div(
+                Box::new(left.clone()),
+                Box::new(right.clone()),
+            )),
         }
     }
 }
@@ -639,6 +690,15 @@ impl Rem for Expression {
 
         match (self, rhs) {
             (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a % b)),
+
+            (
+                left @ (Expression::Variable(_) | Expression::FunctionCall(_)),
+                right @ Expression::Real(_),
+            )
+            | (
+                left @ Expression::Real(_),
+                right @ (Expression::Variable(_) | Expression::FunctionCall(_)),
+            ) => Ok(Expression::Mod(Box::new(left), Box::new(right))),
 
             (left, right) => Err(EvaluationError::InvalidOperation(format!(
                 "Modulo only works with real numbers: got {} and {}",
@@ -896,6 +956,13 @@ impl Expression {
                 // Then check context variables
                 match context.get_symbol(name) {
                     Some(Symbol::Variable(Variable { expression, .. })) => {
+                        // Check for self-reference before recursing
+                        if expression.contains_variable(name) {
+                            return Err(EvaluationError::InvalidOperation(format!(
+                                "Variable '{}' is defined in terms of itself",
+                                name
+                            )));
+                        }
                         // Recursively evaluate the variable's expression
                         expression.evaluate_internal(context, scope)
                     }
