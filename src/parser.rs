@@ -401,7 +401,7 @@ impl Parser {
         if *pos >= tokens.len() || tokens[*pos].kind != TokenKind::LeftBracket {
             return Err(ParseError::InvalidMatrix(
                 "Invalid matrix syntax: expected '[' to start first row, got a vector instead. \
-                 Format: [[row1]; [row2]; ...] where each row is in brackets"
+             Format: [[row1]; [row2]; ...] where each row is in brackets"
                     .to_string(),
             ));
         }
@@ -411,13 +411,29 @@ impl Parser {
         while *pos < tokens.len() && tokens[*pos].kind != TokenKind::RightBracket {
             let row = Self::parse_matrix_row(tokens, pos)?;
 
-            // Validate that all elements in the row are not matrices
+            // Validate that row is not empty
+            if row.is_empty() {
+                return Err(ParseError::InvalidMatrix(
+                    "Empty matrix row: each row must contain at least one element".to_string(),
+                ));
+            }
+
+            // Validate that all elements in the row are not matrices or vectors
             for element in &row {
-                if let Expression::Matrix(_, _, _) = element {
-                    return Err(ParseError::InvalidMatrix(
+                match element {
+                    Expression::Matrix(_, _, _) => {
+                        return Err(ParseError::InvalidMatrix(
                         "Matrix elements cannot be nested matrices: use a single level of matrices only"
                             .to_string(),
                     ));
+                    }
+                    Expression::Vector(_) => {
+                        return Err(ParseError::InvalidMatrix(
+                        "Matrix elements cannot be vectors: use scalar values only in matrix elements"
+                            .to_string(),
+                    ));
+                    }
+                    _ => {}
                 }
             }
 
@@ -427,11 +443,11 @@ impl Parser {
                 *pos += 1; // consume ';'
             } else if *pos < tokens.len() && tokens[*pos].kind != TokenKind::RightBracket {
                 return Err(ParseError::InvalidMatrix(
-                    format!(
-                        "Invalid matrix syntax at position {}: expected ';' to separate rows or ']' to end matrix, got {}",
-                        tokens[*pos].position, tokens[*pos].kind
-                    )
-                ));
+                format!(
+                    "Invalid matrix syntax at position {}: expected ';' to separate rows or ']' to end matrix, got {}",
+                    tokens[*pos].position, tokens[*pos].kind
+                )
+            ));
             }
         }
 
@@ -452,15 +468,15 @@ impl Parser {
         if rows.iter().any(|r| r.len() != row_length) {
             let lengths: Vec<usize> = rows.iter().map(|r| r.len()).collect();
             return Err(ParseError::InvalidMatrix(format!(
-                "Rows have inconsistent lengths: first row has {} elements, but other rows have {}. All rows must have the same length",
-                row_length,
-                lengths
-                    .iter()
-                    .skip(1)
-                    .map(|n| n.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )));
+            "Rows have inconsistent lengths: first row has {} elements, but other rows have {}. All rows must have the same length",
+            row_length,
+            lengths
+                .iter()
+                .skip(1)
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )));
         }
 
         Ok(Expression::Matrix(
@@ -508,6 +524,24 @@ impl Parser {
 
         while *pos < tokens.len() && tokens[*pos].kind != TokenKind::RightBracket {
             let expression = Self::parse_addition(tokens, pos)?;
+
+            // Check if the parsed expression is a vector or matrix (nested structure)
+            match &expression {
+                Expression::Vector(_) => {
+                    return Err(ParseError::InvalidSyntax(
+                    "Vectors cannot contain nested vectors: use a matrix [[...]; [...]] for 2D data"
+                        .to_string(),
+                ));
+                }
+                Expression::Matrix(_, _, _) => {
+                    return Err(ParseError::InvalidSyntax(
+                        "Vectors cannot contain matrices: use scalar values only in vectors"
+                            .to_string(),
+                    ));
+                }
+                _ => {}
+            }
+
             elements.push(expression);
 
             if *pos < tokens.len() && tokens[*pos].kind == TokenKind::Comma {
@@ -521,6 +555,13 @@ impl Parser {
             ));
         }
         *pos += 1; // consume ']'
+
+        // Check if vector is empty
+        if elements.is_empty() {
+            return Err(ParseError::InvalidSyntax(
+                "Empty vector: vectors must contain at least one element".to_string(),
+            ));
+        }
 
         Ok(Expression::Vector(elements))
     }
