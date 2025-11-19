@@ -42,11 +42,13 @@ impl fmt::Display for Expression {
                 write!(f, "{}", n)?;
             }
             Expression::Complex(real, imag) => {
-                if real.abs() < EPSILON {
+                if real.abs() < EPSILON && imag.abs() < EPSILON {
+                    write!(f, "0")?;
+                } else if real.abs() < EPSILON {
                     write!(f, "{}i", imag)?;
                 } else if imag.abs() < EPSILON {
                     write!(f, "{}", real)?;
-                } else if imag.abs() >= EPSILON {
+                } else if *imag >= 0.0 {
                     write!(f, "{} + {}i", real, imag)?;
                 } else {
                     write!(f, "{} - {}i", real, -imag)?;
@@ -106,7 +108,15 @@ impl fmt::Display for Expression {
 }
 
 impl Expression {
-    pub fn is_value(&self) -> bool {
+    pub fn is_zero(&self) -> bool {
+        match self {
+            Expression::Real(n) => n.abs() < EPSILON,
+            Expression::Complex(r, i) => r.abs() < EPSILON && i.abs() < EPSILON,
+            _ => false,
+        }
+    }
+
+    pub fn is_concrete(&self) -> bool {
         matches!(
             self,
             Expression::Real(_)
@@ -116,12 +126,8 @@ impl Expression {
         )
     }
 
-    pub fn is_zero(&self) -> bool {
-        match self {
-            Expression::Real(n) => n.abs() < EPSILON,
-            Expression::Complex(r, i) => r.abs() < EPSILON && i.abs() < EPSILON,
-            _ => false,
-        }
+    pub fn is_symbolic(&self) -> bool {
+        !self.is_concrete()
     }
 
     pub fn is_real(&self) -> bool {
@@ -279,7 +285,8 @@ impl Add for Expression {
             (Expression::Vector(a), Expression::Vector(b)) => {
                 if a.len() != b.len() {
                     return Err(EvaluationError::InvalidOperation(
-                        format!("Vector addition: both vectors must have the same dimension (got {} and {})", a.len(), b.len()),
+                        format!("Vector addition: both vectors must have the same dimension (got {} and {})", 
+                            a.len(), b.len()),
                     ));
                 }
                 let result: Result<Vec<Expression>, _> = a
@@ -305,23 +312,14 @@ impl Add for Expression {
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
             }
 
-            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
-            | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
-                Ok(Expression::Add(Box::new(left), Box::new(right)))
-            }
-
-            (left @ (Expression::Matrix(_, _, _) | Expression::Vector(_)), right)
-            | (left, right @ (Expression::Matrix(_, _, _) | Expression::Vector(_))) => {
+            (left, right) if left.is_concrete() && right.is_concrete() => {
                 Err(EvaluationError::InvalidOperation(format!(
                     "Cannot add {} and {}: incompatible types",
                     left, right
                 )))
             }
 
-            (left, right) => Ok(Expression::Add(
-                Box::new(left.clone()),
-                Box::new(right.clone()),
-            )),
+            (left, right) => Ok(Expression::Add(Box::new(left), Box::new(right))),
         }
     }
 }
@@ -374,23 +372,14 @@ impl Sub for Expression {
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
             }
 
-            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
-            | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
-                Ok(Expression::Sub(Box::new(left), Box::new(right)))
-            }
-
-            (left @ (Expression::Matrix(_, _, _) | Expression::Vector(_)), right)
-            | (left, right @ (Expression::Matrix(_, _, _) | Expression::Vector(_))) => {
+            (left, right) if left.is_concrete() && right.is_concrete() => {
                 Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot sub {} and {}: incompatible types",
+                    "Cannot subtract {} and {}: incompatible types",
                     left, right
                 )))
             }
 
-            (left, right) => Ok(Expression::Sub(
-                Box::new(left.clone()),
-                Box::new(right.clone()),
-            )),
+            (left, right) => Ok(Expression::Sub(Box::new(left), Box::new(right))),
         }
     }
 }
@@ -533,23 +522,14 @@ impl Mul for Expression {
                 Ok(Expression::Vector(result))
             }
 
-            // Invalid combinations
-            (Expression::Vector(_), Expression::Vector(_)) => {
-                Err(EvaluationError::InvalidOperation(
-                    "Cannot multiply two vectors element-wise".to_string(),
-                ))
+            (left, right) if left.is_concrete() && right.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot multiply {} and {}: incompatible types",
+                    left, right
+                )))
             }
 
-            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
-            | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
-                // Keep as unevaluated expression
-                Ok(Expression::Mul(Box::new(left), Box::new(right)))
-            }
-
-            (left, right) => Ok(Expression::Mul(
-                Box::new(left.clone()),
-                Box::new(right.clone()),
-            )),
+            (left, right) => Ok(Expression::Mul(Box::new(left), Box::new(right))),
         }
     }
 }
@@ -585,21 +565,15 @@ impl Expression {
 
                 Ok(Expression::Matrix(result, a_rows, b_cols))
             }
-            (
-                left @ (Expression::Variable(_) | Expression::FunctionCall(_)),
-                right @ Expression::Matrix(_, _, _),
-            )
-            | (
-                left @ Expression::Matrix(_, _, _),
-                right @ (Expression::Variable(_) | Expression::FunctionCall(_)),
-            ) => {
-                // Keep as unevaluated expression
-                Ok(Expression::MatMul(Box::new(left), Box::new(right)))
+
+            (left, right) if left.is_concrete() && right.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot multiply {} and {}: incompatible types",
+                    left, right
+                )))
             }
-            (left, right) => Err(EvaluationError::InvalidOperation(format!(
-                "Matrix multiplication: impossible between {} and {}",
-                left, right
-            ))),
+
+            (left, right) => Ok(Expression::Mul(Box::new(left), Box::new(right.clone()))),
         }
     }
 }
@@ -659,15 +633,14 @@ impl Div for Expression {
                 Ok(Expression::Matrix(result?, rows, cols))
             }
 
-            (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
-            | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
-                Ok(Expression::Div(Box::new(left), Box::new(right)))
+            (left, right) if left.is_concrete() && right.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot divide {} and {}: incompatible types",
+                    left, right
+                )))
             }
 
-            (left, right) => Ok(Expression::Div(
-                Box::new(left.clone()),
-                Box::new(right.clone()),
-            )),
+            (left, right) => Ok(Expression::Mul(Box::new(left), Box::new(right.clone()))),
         }
     }
 }
@@ -685,19 +658,17 @@ impl Rem for Expression {
         match (self, rhs) {
             (Expression::Real(a), Expression::Real(b)) => Ok(Expression::Real(a % b)),
 
-            (
-                left @ (Expression::Variable(_) | Expression::FunctionCall(_)),
-                right @ Expression::Real(_),
-            )
-            | (
-                left @ Expression::Real(_),
-                right @ (Expression::Variable(_) | Expression::FunctionCall(_)),
-            ) => Ok(Expression::Mod(Box::new(left), Box::new(right))),
+            (left, right) if left.is_concrete() && right.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot modulo {} and {}: incompatible types",
+                    left, right
+                )))
+            }
 
-            (left, right) => Err(EvaluationError::InvalidOperation(format!(
-                "Modulo only works with real numbers: got {} and {}",
-                left, right
-            ))),
+            (left, right) => Ok(Expression::Mul(
+                Box::new(left.clone()),
+                Box::new(right.clone()),
+            )),
         }
     }
 }
@@ -755,7 +726,7 @@ impl Expression {
                 "Cannot do power of matrix".to_string(),
             )),
             (Expression::Vector(_), _) => Err(EvaluationError::InvalidOperation(
-                "Cannot do power of matrix".to_string(),
+                "Cannot do power of vector".to_string(),
             )),
             (left, right) => Ok(Expression::Pow(Box::new(left), Box::new(right))),
         }
@@ -1072,7 +1043,7 @@ impl Expression {
                 let left_collected = left.collect_terms()?;
                 let right_collected = right.collect_terms()?;
 
-                if left_collected.is_value() && right_collected.is_value() {
+                if left_collected.is_concrete() && right_collected.is_concrete() {
                     return left_collected.mul(right_collected);
                 }
 

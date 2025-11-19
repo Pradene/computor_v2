@@ -264,7 +264,7 @@ impl Context {
         visited: &mut HashSet<String>,
     ) -> Result<(), EvaluationError> {
         let mut variables = Vec::new();
-        self.collect_all_variables(expression, &mut variables);
+        Self::collect_all_variables(expression, &mut variables);
 
         for variable in variables {
             if variable == name {
@@ -299,7 +299,7 @@ impl Context {
     }
 
     /// Collect all variables referenced in an expression (transitive)
-    fn collect_all_variables(&self, expression: &Expression, variables: &mut Vec<String>) {
+    fn collect_all_variables(expression: &Expression, variables: &mut Vec<String>) {
         match expression {
             Expression::Variable(name) => {
                 if !variables.contains(name) {
@@ -313,25 +313,25 @@ impl Context {
             | Expression::Div(left, right)
             | Expression::Mod(left, right)
             | Expression::Pow(left, right) => {
-                self.collect_all_variables(left, variables);
-                self.collect_all_variables(right, variables);
+                Self::collect_all_variables(left, variables);
+                Self::collect_all_variables(right, variables);
             }
             Expression::Neg(inner) | Expression::Paren(inner) => {
-                self.collect_all_variables(inner, variables);
+                Self::collect_all_variables(inner, variables);
             }
             Expression::FunctionCall(fc) => {
                 for arg in &fc.args {
-                    self.collect_all_variables(arg, variables);
+                    Self::collect_all_variables(arg, variables);
                 }
             }
             Expression::Vector(v) => {
                 for elem in v {
-                    self.collect_all_variables(elem, variables);
+                    Self::collect_all_variables(elem, variables);
                 }
             }
             Expression::Matrix(data, _, _) => {
                 for elem in data {
-                    self.collect_all_variables(elem, variables);
+                    Self::collect_all_variables(elem, variables);
                 }
             }
             _ => {}
