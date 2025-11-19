@@ -266,6 +266,10 @@ impl Add for Expression {
 
                 Ok(Expression::Vector(result?))
             }
+            (vector @ Expression::Vector(_), other) | (other, vector @ Expression::Vector(_)) =>
+                Err(EvaluationError::InvalidOperation(
+                    format!("Invalid operation between {} and {}: vectors require compatible operand types", vector, other)
+                )),
             (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
@@ -281,6 +285,10 @@ impl Add for Expression {
 
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
             }
+            (matrix @ Expression::Matrix(_, _, _), other) | (other, matrix @ Expression::Matrix(_, _, _)) =>
+                Err(EvaluationError::InvalidOperation(
+                    format!("Invalid operation between {} and {}: matrices require compatible operand types", matrix, other)
+                )),
             (left, right) => Ok(Expression::Add(Box::new(left), Box::new(right))),
         }
     }
@@ -316,6 +324,10 @@ impl Sub for Expression {
 
                 Ok(Expression::Vector(result?))
             }
+            (vector @ Expression::Vector(_), other) | (other, vector @ Expression::Vector(_)) =>
+                Err(EvaluationError::InvalidOperation(
+                    format!("Invalid operation between {} and {}: vectors require compatible operand types", vector, other)
+                )),
             (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
                 if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
@@ -331,6 +343,10 @@ impl Sub for Expression {
 
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
             }
+            (matrix @ Expression::Matrix(_, _, _), other) | (other, matrix @ Expression::Matrix(_, _, _)) =>
+                Err(EvaluationError::InvalidOperation(
+                    format!("Invalid operation between {} and {}: matrices require compatible operand types", matrix, other)
+                )),
             (left, right) => Ok(Expression::Sub(Box::new(left), Box::new(right))),
         }
     }
@@ -517,9 +533,10 @@ impl Expression {
 
                 Ok(Expression::Matrix(result, a_rows, b_cols))
             }
-            (_, _) => Err(EvaluationError::InvalidOperation(
-                "Matrix multiplication not implemented for this type".to_string(),
-            )),
+            (left, right) => Err(EvaluationError::InvalidOperation(format!(
+                "Matrix multiplication: impossible between {} and {}",
+                left, right
+            ))),
         }
     }
 }

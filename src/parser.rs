@@ -12,17 +12,19 @@ impl Parser {
         let tokens = Tokenizer::tokenize(&line)?;
 
         if tokens.is_empty() {
-            return Err(ParseError::InvalidSyntax("Empty line".to_string()));
+            return Err(ParseError::InvalidSyntax(
+                "Empty line: please enter a valid assignment, equation, or query".to_string(),
+            ));
         }
 
         if let Some(eq_pos) = Self::find_equals_position(&tokens) {
             let left_tokens = &tokens[..eq_pos];
             let right_tokens = &tokens[eq_pos + 1..];
 
-            // Check is right side is empty
+            // Check if right side is empty
             if right_tokens.is_empty() {
                 return Err(ParseError::InvalidSyntax(
-                    "Expected expression after '='".to_string(),
+                    "Missing expression after '=': expected a value or expression on the right side".to_string(),
                 ));
             }
 
@@ -44,7 +46,7 @@ impl Parser {
             }
         } else {
             Err(ParseError::InvalidSyntax(
-                "Expected assignment or query".to_string(),
+                "No assignment operator found: expected format 'x = value' or 'x = y?'".to_string(),
             ))
         }
     }
@@ -59,7 +61,8 @@ impl Parser {
     ) -> Result<Statement, ParseError> {
         if left_tokens.is_empty() {
             return Err(ParseError::InvalidSyntax(
-                "Missing variable name".to_string(),
+                "Missing variable name: the left side of '=' must start with a variable name"
+                    .to_string(),
             ));
         }
 
@@ -72,9 +75,10 @@ impl Parser {
             // Function definition: f(params...) = ...
             let name = match &left_tokens[0] {
                 Token::Identifier(name) => Ok(name.clone()),
-                _ => Err(ParseError::InvalidSyntax(
-                    "Expected function name".to_string(),
-                )),
+                other => Err(ParseError::InvalidSyntax(format!(
+                    "Invalid function name: expected an identifier, got {:?}",
+                    other
+                ))),
             }?;
 
             let params = Self::parse_function_parameters(&left_tokens[2..left_tokens.len() - 1])?;
@@ -90,9 +94,10 @@ impl Parser {
             // Simple assignment: x = ...
             let name = match &left_tokens[0] {
                 Token::Identifier(name) => Ok(name.clone()),
-                _ => Err(ParseError::InvalidSyntax(
-                    "Expected variable name".to_string(),
-                )),
+                other => Err(ParseError::InvalidSyntax(format!(
+                    "Invalid variable name: expected an identifier, got {:?}",
+                    other
+                ))),
             }?;
 
             let expression = Self::parse_expression_from_tokens(right_tokens)?;
@@ -103,42 +108,58 @@ impl Parser {
         } else {
             // Invalid: can't assign to expressions like a*b
             Err(ParseError::InvalidSyntax(
-                "Left side of assignment must be a variable or function".to_string(),
+                format!(
+                    "Invalid left side of assignment: got {} tokens but expected a single variable or function definition. \
+                     Did you mean to write a function like 'f(x) = ...' or a simple assignment like 'x = ...'?",
+                    left_tokens.len()
+                )
             ))
         }
     }
 
     fn parse_function_parameters(tokens: &[Token]) -> Result<Vec<String>, ParseError> {
         let mut params = Vec::new();
-        let mut expect_identifier = true; // Start expecting an identifier
+        let mut expect_identifier = true;
 
-        for token in tokens {
+        for (i, token) in tokens.iter().enumerate() {
             match token {
                 Token::Identifier(param) => {
                     if !expect_identifier {
                         return Err(ParseError::InvalidSyntax(
-                            "Unexpected parameter, expected comma".to_string(),
+                            format!(
+                                "Unexpected parameter at position {}: expected comma separator, got identifier '{}'",
+                                i, param
+                            )
                         ));
                     }
                     params.push(param.clone());
-                    expect_identifier = false; // After identifier, expect comma
+                    expect_identifier = false;
                 }
                 Token::Comma => {
                     if expect_identifier {
                         return Err(ParseError::InvalidSyntax(
-                            "Unexpected comma, expected parameter".to_string(),
+                            format!(
+                                "Unexpected comma at position {}: no parameter before this comma",
+                                i
+                            )
                         ));
                     }
-                    expect_identifier = true; // After comma, expect identifier
+                    expect_identifier = true;
                 }
-                _ => return Err(ParseError::InvalidSyntax("Invalid parameter".to_string())),
+                other => {
+                    return Err(ParseError::InvalidSyntax(format!(
+                        "Invalid token in parameter list at position {}: got {:?}, expected parameter name or comma",
+                        i, other
+                    )))
+                }
             }
         }
 
         // Check if we ended expecting an identifier (trailing comma)
         if expect_identifier && !params.is_empty() {
             return Err(ParseError::InvalidSyntax(
-                "Trailing comma in parameter list".to_string(),
+                "Trailing comma in parameter list: remove the comma before the closing parenthesis"
+                    .to_string(),
             ));
         }
 
@@ -150,7 +171,18 @@ impl Parser {
             return Err(ParseError::UnexpectedEof);
         }
 
-        Self::parse_addition(tokens, &mut 0)
+        let mut pos = 0;
+        let expr = Self::parse_addition(tokens, &mut pos)?;
+
+        // Check if all tokens were consumed
+        if pos < tokens.len() {
+            return Err(ParseError::InvalidSyntax(format!(
+                "Unexpected token at position {}: got {:?}. All tokens must form a single valid expression",
+                pos, tokens[pos]
+            )));
+        }
+
+        Ok(expr)
     }
 
     fn parse_addition(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
@@ -205,9 +237,12 @@ impl Parser {
                     left = Expression::Mul(Box::new(left), Box::new(right));
                 }
                 Token::Number(_) => {
-                    // Disallow number after any expression (ex: a5)
                     return Err(ParseError::InvalidSyntax(
-                        "Numbers cannot directly follow expressions".to_string(),
+                        format!(
+                            "Number cannot directly follow an expression at token position {}: \
+                             numbers must be separated from expressions (e.g., use '5 * x' instead of '5x', or '2 * (a+b)' instead of '2(a+b)')",
+                            pos
+                        )
                     ));
                 }
                 _ => break,
@@ -222,7 +257,7 @@ impl Parser {
 
         if *pos < tokens.len() && tokens[*pos] == Token::Power {
             *pos += 1;
-            let right = Self::parse_power(tokens, pos)?; // Right associative
+            let right = Self::parse_power(tokens, pos)?;
             left = Expression::Pow(Box::new(left), Box::new(right));
         }
 
@@ -266,7 +301,10 @@ impl Parser {
             Token::LeftBracket => Self::parse_bracket(tokens, pos),
             Token::Identifier(name) => Self::parse_identifier(tokens, pos, name.clone()),
             Token::LeftParen => Self::parse_parenthesized_expression(tokens, pos),
-            _ => Err(ParseError::UnexpectedToken(format!("{:?}", tokens[*pos]))),
+            other => Err(ParseError::UnexpectedToken(format!(
+                "Unexpected token at position {}: got {:?}, expected a number, variable, '(', '[', or '-'",
+                pos, other
+            ))),
         }
     }
 
@@ -305,9 +343,10 @@ impl Parser {
         }
 
         if *pos >= tokens.len() || tokens[*pos] != Token::RightParen {
-            return Err(ParseError::InvalidSyntax(
-                "Missing closing parenthesis".to_string(),
-            ));
+            return Err(ParseError::InvalidSyntax(format!(
+                "Missing closing parenthesis in function call '{}': expected ')' after arguments",
+                name
+            )));
         }
         *pos += 1; // consume ')'
 
@@ -323,7 +362,7 @@ impl Parser {
 
         if *pos >= tokens.len() || tokens[*pos] != Token::RightParen {
             return Err(ParseError::InvalidSyntax(
-                "Missing closing parenthesis".to_string(),
+                "Missing closing parenthesis: expected ')' to match opening '('".to_string(),
             ));
         }
         *pos += 1; // consume ')'
@@ -332,18 +371,36 @@ impl Parser {
     }
 
     fn parse_bracket(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
-        if *pos + 1 >= tokens.len() {
+        if *pos >= tokens.len() {
             return Err(ParseError::UnexpectedEof);
         }
 
-        match tokens[*pos + 1] {
-            Token::LeftBracket => Self::parse_matrix(tokens, pos),
-            _ => Self::parse_vector(tokens, pos),
+        // Look ahead to determine if this is a matrix or vector
+        // A matrix starts with [[, a vector is just [
+        let is_matrix = if *pos + 1 < tokens.len() {
+            tokens[*pos + 1] == Token::LeftBracket
+        } else {
+            false
+        };
+
+        if is_matrix {
+            Self::parse_matrix(tokens, pos)
+        } else {
+            Self::parse_vector(tokens, pos)
         }
     }
 
     fn parse_matrix(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
-        *pos += 1; // consume '['
+        *pos += 1; // consume first '['
+
+        // Verify next token is actually '['
+        if *pos >= tokens.len() || tokens[*pos] != Token::LeftBracket {
+            return Err(ParseError::InvalidMatrix(
+                "Invalid matrix syntax: expected '[' to start first row, got a vector instead. \
+                 Format: [[row1]; [row2]; ...] where each row is in brackets"
+                    .to_string(),
+            ));
+        }
 
         let mut rows = Vec::new();
 
@@ -354,7 +411,8 @@ impl Parser {
             for element in &row {
                 if let Expression::Matrix(_, _, _) = element {
                     return Err(ParseError::InvalidMatrix(
-                        "Matrix elements cannot be matrices".to_string(),
+                        "Matrix elements cannot be nested matrices: use a single level of matrices only"
+                            .to_string(),
                     ));
                 }
             }
@@ -363,25 +421,42 @@ impl Parser {
 
             if *pos < tokens.len() && tokens[*pos] == Token::Semicolon {
                 *pos += 1; // consume ';'
+            } else if *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
+                return Err(ParseError::InvalidMatrix(
+                    format!(
+                        "Invalid matrix syntax at position {}: expected ';' to separate rows or ']' to end matrix, got {:?}",
+                        pos, tokens[*pos]
+                    )
+                ));
             }
         }
 
         if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
             return Err(ParseError::InvalidSyntax(
-                "Missing ']' for matrix".to_string(),
+                "Missing closing bracket ']' for matrix".to_string(),
             ));
         }
-        *pos += 1; // consume ']'
+        *pos += 1; // consume final ']'
 
         if rows.is_empty() {
-            return Err(ParseError::InvalidMatrix("Empty matrix".to_string()));
+            return Err(ParseError::InvalidMatrix(
+                "Empty matrix: matrix must contain at least one row with one element".to_string(),
+            ));
         }
 
         let row_length = rows[0].len();
         if rows.iter().any(|r| r.len() != row_length) {
-            return Err(ParseError::InvalidMatrix(
-                "Rows are not all the same length".to_string(),
-            ));
+            let lengths: Vec<usize> = rows.iter().map(|r| r.len()).collect();
+            return Err(ParseError::InvalidMatrix(format!(
+                "Rows have inconsistent lengths: first row has {} elements, but other rows have {}. All rows must have the same length",
+                row_length,
+                lengths
+                    .iter()
+                    .skip(1)
+                    .map(|n| n.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )));
         }
 
         Ok(Expression::Matrix(
@@ -393,9 +468,10 @@ impl Parser {
 
     fn parse_matrix_row(tokens: &[Token], pos: &mut usize) -> Result<Vec<Expression>, ParseError> {
         if tokens[*pos] != Token::LeftBracket {
-            return Err(ParseError::InvalidSyntax(
-                "Expected '[' for matrix row".to_string(),
-            ));
+            return Err(ParseError::InvalidSyntax(format!(
+                "Expected '[' to start matrix row at position {}, got {:?}",
+                pos, tokens[*pos]
+            )));
         }
 
         *pos += 1; // consume '['
@@ -413,7 +489,7 @@ impl Parser {
 
         if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
             return Err(ParseError::InvalidSyntax(
-                "Missing ']' for matrix row".to_string(),
+                "Missing closing bracket ']' for matrix row".to_string(),
             ));
         }
         *pos += 1; // consume ']'
@@ -437,7 +513,7 @@ impl Parser {
 
         if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
             return Err(ParseError::InvalidSyntax(
-                "Missing ']' for vector".to_string(),
+                "Missing closing bracket ']' for vector".to_string(),
             ));
         }
         *pos += 1; // consume ']'
