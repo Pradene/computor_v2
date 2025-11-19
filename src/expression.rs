@@ -7,7 +7,7 @@ use std::{
 use crate::{
     context::{Context, Symbol, Variable},
     error::EvaluationError,
-    EPSILON,
+    constant::EPSILON,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -402,7 +402,7 @@ impl Mul for Expression {
         match (self, rhs) {
             // Scalar * Scalar
             (Expression::Real(a), Expression::Real(b)) => {
-                if a.abs() < crate::EPSILON || b.abs() < crate::EPSILON {
+                if a.abs() < EPSILON || b.abs() < EPSILON {
                     Ok(Expression::Real(0.0))
                 } else {
                     Ok(Expression::Real(a * b))
@@ -410,8 +410,8 @@ impl Mul for Expression {
             }
 
             (Expression::Complex(a_r, a_i), Expression::Complex(b_r, b_i)) => {
-                let a_is_zero = a_r.abs() < crate::EPSILON && a_i.abs() < crate::EPSILON;
-                let b_is_zero = b_r.abs() < crate::EPSILON && b_i.abs() < crate::EPSILON;
+                let a_is_zero = a_r.abs() < EPSILON && a_i.abs() < EPSILON;
+                let b_is_zero = b_r.abs() < EPSILON && b_i.abs() < EPSILON;
                 if a_is_zero || b_is_zero {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
@@ -420,8 +420,8 @@ impl Mul for Expression {
             }
 
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
-                if a.abs() < crate::EPSILON
-                    || (b_r.abs() < crate::EPSILON && b_i.abs() < crate::EPSILON)
+                if a.abs() < EPSILON
+                    || (b_r.abs() < EPSILON && b_i.abs() < EPSILON)
                 {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
@@ -430,8 +430,8 @@ impl Mul for Expression {
             }
 
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
-                if (a_r.abs() < crate::EPSILON && a_i.abs() < crate::EPSILON)
-                    || b.abs() < crate::EPSILON
+                if (a_r.abs() < EPSILON && a_i.abs() < EPSILON)
+                    || b.abs() < EPSILON
                 {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
@@ -442,7 +442,7 @@ impl Mul for Expression {
             // Scalar * Vector
             (Expression::Real(s), Expression::Vector(v))
             | (Expression::Vector(v), Expression::Real(s)) => {
-                if s.abs() < crate::EPSILON {
+                if s.abs() < EPSILON {
                     let zero_vec = vec![Expression::Real(0.0); v.len()];
                     Ok(Expression::Vector(zero_vec))
                 } else {
@@ -456,7 +456,7 @@ impl Mul for Expression {
 
             (Expression::Complex(r, i), Expression::Vector(v))
             | (Expression::Vector(v), Expression::Complex(r, i)) => {
-                if r.abs() < crate::EPSILON && i.abs() < crate::EPSILON {
+                if r.abs() < EPSILON && i.abs() < EPSILON {
                     let zero_vec = vec![Expression::Complex(0.0, 0.0); v.len()];
                     Ok(Expression::Vector(zero_vec))
                 } else {
@@ -471,7 +471,7 @@ impl Mul for Expression {
             // Scalar * Matrix
             (Expression::Real(s), Expression::Matrix(data, rows, cols))
             | (Expression::Matrix(data, rows, cols), Expression::Real(s)) => {
-                if s.abs() < crate::EPSILON {
+                if s.abs() < EPSILON {
                     let zero_matrix = vec![Expression::Real(0.0); rows * cols];
                     Ok(Expression::Matrix(zero_matrix, rows, cols))
                 } else {
@@ -485,7 +485,7 @@ impl Mul for Expression {
 
             (Expression::Complex(r, i), Expression::Matrix(data, rows, cols))
             | (Expression::Matrix(data, rows, cols), Expression::Complex(r, i)) => {
-                if r.abs() < crate::EPSILON && i.abs() < crate::EPSILON {
+                if r.abs() < EPSILON && i.abs() < EPSILON {
                     let zero_matrix = vec![Expression::Complex(0.0, 0.0); rows * cols];
                     Ok(Expression::Matrix(zero_matrix, rows, cols))
                 } else {
