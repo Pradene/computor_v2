@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::Sub;
 
@@ -227,6 +227,8 @@ impl Context {
             return Err(EvaluationError::CannotOverrideBuiltin(name));
         }
 
+        self.check_circular_dependency(&name, &symbol)?;
+
         self.table.insert(name, symbol.clone());
 
         let expression = match symbol {
@@ -236,6 +238,98 @@ impl Context {
         };
 
         expression.evaluate(self)?.reduce()
+    }
+
+    /// Detects circular dependencies like: a = b, then b = a
+    fn check_circular_dependency(&self, name: &str, symbol: &Symbol) -> Result<(), EvaluationError> {
+        let mut visited = HashSet::new();
+        let expression = match symbol {
+            Symbol::Variable(Variable { expression, .. }) => expression,
+            Symbol::Function(FunctionDefinition { body, .. }) => body,
+            Symbol::BuiltinFunction(_) => return Ok(()),
+        };
+
+        self.detect_cycle(name, expression, &mut visited)
+    }
+
+    /// Recursively check if assigning `name` to `expression` creates a cycle
+    fn detect_cycle(
+        &self,
+        name: &str,
+        expression: &Expression,
+        visited: &mut HashSet<String>,
+    ) -> Result<(), EvaluationError> {
+        let mut variables = Vec::new();
+        self.collect_all_variables(expression, &mut variables);
+
+        for variable in variables {
+            if variable == name {
+                // Found a direct reference back to the variable being assigned
+                return Err(EvaluationError::InvalidOperation(format!(
+                    "Circular dependency detected: cannot define '{}' in terms of itself",
+                    name
+                )));
+            }
+
+            // Prevent infinite recursion on cycles during detection
+            if visited.contains(&variable) {
+                continue;
+            }
+            visited.insert(variable.clone());
+
+            // Look up the variable's definition and check its dependencies
+            if let Some(Symbol::Variable(Variable { expression: var_expr, .. })) =
+                self.get_symbol(&variable)
+            {
+                self.detect_cycle(name, var_expr, visited)?;
+            } else if let Some(Symbol::Function(FunctionDefinition { body, .. })) =
+                self.get_symbol(&variable)
+            {
+                self.detect_cycle(name, body, visited)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Collect all variables referenced in an expression (transitive)
+    fn collect_all_variables(&self, expression: &Expression, variables: &mut Vec<String>) {
+        match expression {
+            Expression::Variable(name) => {
+                if !variables.contains(name) {
+                    variables.push(name.clone());
+                }
+            }
+            Expression::Add(left, right)
+            | Expression::Sub(left, right)
+            | Expression::Mul(left, right)
+            | Expression::MatMul(left, right)
+            | Expression::Div(left, right)
+            | Expression::Mod(left, right)
+            | Expression::Pow(left, right) => {
+                self.collect_all_variables(left, variables);
+                self.collect_all_variables(right, variables);
+            }
+            Expression::Neg(inner) | Expression::Paren(inner) => {
+                self.collect_all_variables(inner, variables);
+            }
+            Expression::FunctionCall(fc) => {
+                for arg in &fc.args {
+                    self.collect_all_variables(arg, variables);
+                }
+            }
+            Expression::Vector(v) => {
+                for elem in v {
+                    self.collect_all_variables(elem, variables);
+                }
+            }
+            Expression::Matrix(data, _, _) => {
+                for elem in data {
+                    self.collect_all_variables(elem, variables);
+                }
+            }
+            _ => {}
+        }
     }
 
     pub fn unset(&mut self, name: &str) -> Option<Symbol> {

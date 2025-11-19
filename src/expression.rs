@@ -382,12 +382,12 @@ impl Sub for Expression {
             (left @ (Expression::Matrix(_, _, _) | Expression::Vector(_)), right)
             | (left, right @ (Expression::Matrix(_, _, _) | Expression::Vector(_))) => {
                 Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot add {} and {}: incompatible types",
+                    "Cannot sub {} and {}: incompatible types",
                     left, right
                 )))
             }
 
-            (left, right) => Ok(Expression::Add(
+            (left, right) => Ok(Expression::Sub(
                 Box::new(left.clone()),
                 Box::new(right.clone()),
             )),
