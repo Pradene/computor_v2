@@ -1,5 +1,5 @@
 use crate::context::{Statement, Variable};
-use crate::tokenizer::{Token, Tokenizer};
+use crate::tokenizer::{Token, TokenKind, Tokenizer};
 
 use crate::context::{FunctionDefinition, Symbol};
 use crate::error::ParseError;
@@ -29,7 +29,11 @@ impl Parser {
             }
 
             // Look for (... = ... ?)
-            if right_tokens.iter().last() == Some(&Token::Question) {
+            if let Some(Token {
+                kind: TokenKind::Question,
+                ..
+            }) = right_tokens.last()
+            {
                 if right_tokens.len() == 1 {
                     let expression = Self::parse_expression_from_tokens(left_tokens)?;
                     Ok(Statement::Query { expression })
@@ -52,7 +56,7 @@ impl Parser {
     }
 
     fn find_equals_position(tokens: &[Token]) -> Option<usize> {
-        tokens.iter().position(|t| *t == Token::Equal)
+        tokens.iter().position(|t| t.kind == TokenKind::Equal)
     }
 
     fn parse_assignment(
@@ -68,13 +72,13 @@ impl Parser {
 
         // Check if this is a function definition: must have parentheses
         let is_function_definition = left_tokens.len() >= 3
-            && left_tokens[1] == Token::LeftParen
-            && left_tokens.last() == Some(&Token::RightParen);
+            && left_tokens[1].kind == TokenKind::LeftParen
+            && left_tokens.last().unwrap().kind == TokenKind::RightParen;
 
         if is_function_definition {
             // Function definition: f(params...) = ...
-            let name = match &left_tokens[0] {
-                Token::Identifier(name) => Ok(name.clone()),
+            let name = match &left_tokens[0].kind {
+                TokenKind::Identifier(name) => Ok(name.clone()),
                 other => Err(ParseError::InvalidSyntax(format!(
                     "Invalid function name: expected an identifier, got {:?}",
                     other
@@ -92,8 +96,8 @@ impl Parser {
             Ok(Statement::Assignment { name, value })
         } else if left_tokens.len() == 1 {
             // Simple assignment: x = ...
-            let name = match &left_tokens[0] {
-                Token::Identifier(name) => Ok(name.clone()),
+            let name = match &left_tokens[0].kind {
+                TokenKind::Identifier(name) => Ok(name.clone()),
                 other => Err(ParseError::InvalidSyntax(format!(
                     "Invalid variable name: expected an identifier, got {:?}",
                     other
@@ -121,26 +125,26 @@ impl Parser {
         let mut params = Vec::new();
         let mut expect_identifier = true;
 
-        for (i, token) in tokens.iter().enumerate() {
-            match token {
-                Token::Identifier(param) => {
+        for token in tokens.iter() {
+            match &token.kind {
+                TokenKind::Identifier(param) => {
                     if !expect_identifier {
                         return Err(ParseError::InvalidSyntax(
                             format!(
                                 "Unexpected parameter at position {}: expected comma separator, got identifier '{}'",
-                                i, param
+                                token.position, param
                             )
                         ));
                     }
                     params.push(param.clone());
                     expect_identifier = false;
                 }
-                Token::Comma => {
+                TokenKind::Comma => {
                     if expect_identifier {
                         return Err(ParseError::InvalidSyntax(
                             format!(
                                 "Unexpected comma at position {}: no parameter before this comma",
-                                i
+                                token.position
                             )
                         ));
                     }
@@ -149,7 +153,7 @@ impl Parser {
                 other => {
                     return Err(ParseError::InvalidSyntax(format!(
                         "Invalid token in parameter list at position {}: got {:?}, expected parameter name or comma",
-                        i, other
+                        token.position, other
                     )))
                 }
             }
@@ -177,8 +181,8 @@ impl Parser {
         // Check if all tokens were consumed
         if pos < tokens.len() {
             return Err(ParseError::InvalidSyntax(format!(
-                "Unexpected token at position {}: got {:?}. All tokens must form a single valid expression",
-                pos, tokens[pos]
+                "Unexpected token at position {}: got {}. All tokens must form a single valid expression",
+                tokens.get(pos).unwrap().position, tokens[pos]
             )));
         }
 
@@ -189,13 +193,13 @@ impl Parser {
         let mut left = Self::parse_multiplication(tokens, pos)?;
 
         while *pos < tokens.len() {
-            match &tokens[*pos] {
-                Token::Plus => {
+            match &tokens[*pos].kind {
+                TokenKind::Plus => {
                     *pos += 1;
                     let right = Self::parse_multiplication(tokens, pos)?;
                     left = Expression::Add(Box::new(left), Box::new(right));
                 }
-                Token::Minus => {
+                TokenKind::Minus => {
                     *pos += 1;
                     let right = Self::parse_multiplication(tokens, pos)?;
                     left = Expression::Sub(Box::new(left), Box::new(right));
@@ -211,32 +215,32 @@ impl Parser {
         let mut left = Self::parse_power(tokens, pos)?;
 
         while *pos < tokens.len() {
-            match &tokens[*pos] {
-                Token::Mul => {
+            match &tokens[*pos].kind {
+                TokenKind::Mul => {
                     *pos += 1;
                     let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mul(Box::new(left), Box::new(right));
                 }
-                Token::MatMul => {
+                TokenKind::MatMul => {
                     *pos += 1;
                     let right = Self::parse_power(tokens, pos)?;
                     left = Expression::MatMul(Box::new(left), Box::new(right));
                 }
-                Token::Divide => {
+                TokenKind::Divide => {
                     *pos += 1;
                     let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Div(Box::new(left), Box::new(right));
                 }
-                Token::Modulo => {
+                TokenKind::Modulo => {
                     *pos += 1;
                     let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mod(Box::new(left), Box::new(right));
                 }
-                Token::Identifier(_) | Token::LeftParen | Token::Imaginary => {
+                TokenKind::Identifier(_) | TokenKind::LeftParen | TokenKind::Imaginary => {
                     let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mul(Box::new(left), Box::new(right));
                 }
-                Token::Number(_) => {
+                TokenKind::Number(_) => {
                     return Err(ParseError::InvalidSyntax(
                         format!(
                             "Number cannot directly follow an expression at token position {}: \
@@ -255,7 +259,7 @@ impl Parser {
     fn parse_power(tokens: &[Token], pos: &mut usize) -> Result<Expression, ParseError> {
         let mut left = Self::parse_unary(tokens, pos)?;
 
-        if *pos < tokens.len() && tokens[*pos] == Token::Power {
+        if *pos < tokens.len() && tokens[*pos].kind == TokenKind::Power {
             *pos += 1;
             let right = Self::parse_power(tokens, pos)?;
             left = Expression::Pow(Box::new(left), Box::new(right));
@@ -269,13 +273,13 @@ impl Parser {
             return Err(ParseError::UnexpectedEof);
         }
 
-        match &tokens[*pos] {
-            Token::Plus => {
+        match &tokens[*pos].kind {
+            TokenKind::Plus => {
                 *pos += 1;
                 let inner = Self::parse_primary(tokens, pos)?;
                 Ok(inner)
             }
-            Token::Minus => {
+            TokenKind::Minus => {
                 *pos += 1;
                 let inner = Self::parse_primary(tokens, pos)?;
                 Ok(Expression::Neg(Box::new(inner)))
@@ -289,21 +293,21 @@ impl Parser {
             return Err(ParseError::UnexpectedEof);
         }
 
-        match &tokens[*pos] {
-            Token::Number(n) => {
+        match &tokens[*pos].kind {
+            TokenKind::Number(n) => {
                 *pos += 1;
                 Ok(Expression::Real(*n))
             }
-            Token::Imaginary => {
+            TokenKind::Imaginary => {
                 *pos += 1;
                 Ok(Expression::Complex(0.0, 1.0))
             }
-            Token::LeftBracket => Self::parse_bracket(tokens, pos),
-            Token::Identifier(name) => Self::parse_identifier(tokens, pos, name.clone()),
-            Token::LeftParen => Self::parse_parenthesized_expression(tokens, pos),
+            TokenKind::LeftBracket => Self::parse_bracket(tokens, pos),
+            TokenKind::Identifier(name) => Self::parse_identifier(tokens, pos, name.clone()),
+            TokenKind::LeftParen => Self::parse_parenthesized_expression(tokens, pos),
             other => Err(ParseError::UnexpectedToken(format!(
                 "Unexpected token at position {}: got {:?}, expected a number, variable, '(', '[', or '-'",
-                pos, other
+                tokens[*pos].position, other
             ))),
         }
     }
@@ -316,7 +320,7 @@ impl Parser {
         *pos += 1;
 
         // Check for function call
-        if *pos < tokens.len() && tokens[*pos] == Token::LeftParen {
+        if *pos < tokens.len() && tokens[*pos].kind == TokenKind::LeftParen {
             Self::parse_function_call(tokens, pos, name)
         } else {
             Ok(Expression::Variable(name))
@@ -333,16 +337,16 @@ impl Parser {
         let mut args = Vec::new();
 
         // Parse arguments
-        while *pos < tokens.len() && tokens[*pos] != Token::RightParen {
+        while *pos < tokens.len() && tokens[*pos].kind != TokenKind::RightParen {
             let arg = Self::parse_addition(tokens, pos)?;
             args.push(arg);
 
-            if *pos < tokens.len() && tokens[*pos] == Token::Comma {
+            if *pos < tokens.len() && tokens[*pos].kind == TokenKind::Comma {
                 *pos += 1; // consume ','
             }
         }
 
-        if *pos >= tokens.len() || tokens[*pos] != Token::RightParen {
+        if *pos >= tokens.len() || tokens[*pos].kind != TokenKind::RightParen {
             return Err(ParseError::InvalidSyntax(format!(
                 "Missing closing parenthesis in function call '{}': expected ')' after arguments",
                 name
@@ -360,7 +364,7 @@ impl Parser {
         *pos += 1; // consume '('
         let expression = Self::parse_addition(tokens, pos)?;
 
-        if *pos >= tokens.len() || tokens[*pos] != Token::RightParen {
+        if *pos >= tokens.len() || tokens[*pos].kind != TokenKind::RightParen {
             return Err(ParseError::InvalidSyntax(
                 "Missing closing parenthesis: expected ')' to match opening '('".to_string(),
             ));
@@ -378,7 +382,7 @@ impl Parser {
         // Look ahead to determine if this is a matrix or vector
         // A matrix starts with [[, a vector is just [
         let is_matrix = if *pos + 1 < tokens.len() {
-            tokens[*pos + 1] == Token::LeftBracket
+            tokens[*pos + 1].kind == TokenKind::LeftBracket
         } else {
             false
         };
@@ -394,7 +398,7 @@ impl Parser {
         *pos += 1; // consume first '['
 
         // Verify next token is actually '['
-        if *pos >= tokens.len() || tokens[*pos] != Token::LeftBracket {
+        if *pos >= tokens.len() || tokens[*pos].kind != TokenKind::LeftBracket {
             return Err(ParseError::InvalidMatrix(
                 "Invalid matrix syntax: expected '[' to start first row, got a vector instead. \
                  Format: [[row1]; [row2]; ...] where each row is in brackets"
@@ -404,7 +408,7 @@ impl Parser {
 
         let mut rows = Vec::new();
 
-        while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
+        while *pos < tokens.len() && tokens[*pos].kind != TokenKind::RightBracket {
             let row = Self::parse_matrix_row(tokens, pos)?;
 
             // Validate that all elements in the row are not matrices
@@ -419,19 +423,19 @@ impl Parser {
 
             rows.push(row);
 
-            if *pos < tokens.len() && tokens[*pos] == Token::Semicolon {
+            if *pos < tokens.len() && tokens[*pos].kind == TokenKind::Semicolon {
                 *pos += 1; // consume ';'
-            } else if *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
+            } else if *pos < tokens.len() && tokens[*pos].kind != TokenKind::RightBracket {
                 return Err(ParseError::InvalidMatrix(
                     format!(
-                        "Invalid matrix syntax at position {}: expected ';' to separate rows or ']' to end matrix, got {:?}",
-                        pos, tokens[*pos]
+                        "Invalid matrix syntax at position {}: expected ';' to separate rows or ']' to end matrix, got {}",
+                        tokens[*pos].position, tokens[*pos].kind
                     )
                 ));
             }
         }
 
-        if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
+        if *pos >= tokens.len() || tokens[*pos].kind != TokenKind::RightBracket {
             return Err(ParseError::InvalidSyntax(
                 "Missing closing bracket ']' for matrix".to_string(),
             ));
@@ -467,10 +471,10 @@ impl Parser {
     }
 
     fn parse_matrix_row(tokens: &[Token], pos: &mut usize) -> Result<Vec<Expression>, ParseError> {
-        if tokens[*pos] != Token::LeftBracket {
+        if tokens[*pos].kind != TokenKind::LeftBracket {
             return Err(ParseError::InvalidSyntax(format!(
                 "Expected '[' to start matrix row at position {}, got {:?}",
-                pos, tokens[*pos]
+                tokens[*pos].position, tokens[*pos].kind
             )));
         }
 
@@ -478,16 +482,16 @@ impl Parser {
         let mut row = Vec::new();
 
         // Parse row elements
-        while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
+        while *pos < tokens.len() && tokens[*pos].kind != TokenKind::RightBracket {
             let expression = Self::parse_addition(tokens, pos)?;
             row.push(expression);
 
-            if *pos < tokens.len() && tokens[*pos] == Token::Comma {
+            if *pos < tokens.len() && tokens[*pos].kind == TokenKind::Comma {
                 *pos += 1; // consume ','
             }
         }
 
-        if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
+        if *pos >= tokens.len() || tokens[*pos].kind != TokenKind::RightBracket {
             return Err(ParseError::InvalidSyntax(
                 "Missing closing bracket ']' for matrix row".to_string(),
             ));
@@ -502,16 +506,16 @@ impl Parser {
 
         let mut elements = Vec::new();
 
-        while *pos < tokens.len() && tokens[*pos] != Token::RightBracket {
+        while *pos < tokens.len() && tokens[*pos].kind != TokenKind::RightBracket {
             let expression = Self::parse_addition(tokens, pos)?;
             elements.push(expression);
 
-            if *pos < tokens.len() && tokens[*pos] == Token::Comma {
+            if *pos < tokens.len() && tokens[*pos].kind == TokenKind::Comma {
                 *pos += 1; // consume ','
             }
         }
 
-        if *pos >= tokens.len() || tokens[*pos] != Token::RightBracket {
+        if *pos >= tokens.len() || tokens[*pos].kind != TokenKind::RightBracket {
             return Err(ParseError::InvalidSyntax(
                 "Missing closing bracket ']' for vector".to_string(),
             ));

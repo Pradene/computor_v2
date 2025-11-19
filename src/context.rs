@@ -55,13 +55,13 @@ impl BuiltinFunction {
 
     pub fn arity(&self) -> usize {
         // match self {
-            // BuiltinFunction::Rad => 1,
-            // BuiltinFunction::Norm => 1,
-            // BuiltinFunction::Abs => 1,
-            // BuiltinFunction::Sqrt => 1,
-            // BuiltinFunction::Cos => 1,
-            // BuiltinFunction::Sin => 1,
-            // BuiltinFunction::Tan => 1,
+        // BuiltinFunction::Rad => 1,
+        // BuiltinFunction::Norm => 1,
+        // BuiltinFunction::Abs => 1,
+        // BuiltinFunction::Sqrt => 1,
+        // BuiltinFunction::Cos => 1,
+        // BuiltinFunction::Sin => 1,
+        // BuiltinFunction::Tan => 1,
         // }
 
         1
