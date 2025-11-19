@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
+    constant::EPSILON,
     context::{Context, Symbol, Variable},
     error::EvaluationError,
-    constant::EPSILON,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -420,9 +420,7 @@ impl Mul for Expression {
             }
 
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
-                if a.abs() < EPSILON
-                    || (b_r.abs() < EPSILON && b_i.abs() < EPSILON)
-                {
+                if a.abs() < EPSILON || (b_r.abs() < EPSILON && b_i.abs() < EPSILON) {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a, 0.0, b_r, b_i))
@@ -430,9 +428,7 @@ impl Mul for Expression {
             }
 
             (Expression::Complex(a_r, a_i), Expression::Real(b)) => {
-                if (a_r.abs() < EPSILON && a_i.abs() < EPSILON)
-                    || b.abs() < EPSILON
-                {
+                if (a_r.abs() < EPSILON && a_i.abs() < EPSILON) || b.abs() < EPSILON {
                     Ok(Expression::Complex(0.0, 0.0))
                 } else {
                     Ok(Self::complex_mul(a_r, a_i, b, 0.0))
@@ -514,7 +510,8 @@ impl Mul for Expression {
             }
 
             // Matrix * Vector
-            (Expression::Matrix(a, rows, cols), Expression::Vector(b)) => {
+            (Expression::Matrix(a, rows, cols), Expression::Vector(b))
+            | (Expression::Vector(b), Expression::Matrix(a, rows, cols)) => {
                 if cols != b.len() {
                     return Err(EvaluationError::InvalidOperation(
                         format!("Matrix-Vector multiplication: matrix has {} columns but vector has {} elements", 
@@ -542,9 +539,6 @@ impl Mul for Expression {
                     "Cannot multiply two vectors element-wise".to_string(),
                 ))
             }
-            (Expression::Vector(_), Expression::Matrix(_, _, _)) => Err(
-                EvaluationError::InvalidOperation("Cannot multiply matriux by vector".to_string()),
-            ),
 
             (left @ (Expression::Variable(_) | Expression::FunctionCall(_)), right)
             | (left, right @ (Expression::Variable(_) | Expression::FunctionCall(_))) => {
@@ -757,51 +751,12 @@ impl Expression {
             (Expression::Real(a), Expression::Complex(b_r, b_i)) => {
                 Ok(Self::complex_pow(a, 0.0, b_r, b_i))
             }
-            (Expression::Matrix(data, rows, cols), Expression::Real(b)) => {
-                // Check if matrix is square
-                if rows != cols {
-                    return Err(EvaluationError::InvalidOperation(
-                        "Matrix must be square for exponentiation".to_string(),
-                    ));
-                }
-
-                let n = b as i32;
-
-                // Handle negative powers
-                if n < 0 {
-                    return Err(EvaluationError::InvalidOperation(
-                        "Negative powers not supported".to_string(),
-                    ));
-                }
-
-                // Handle power of 0 - return identity matrix
-                if n == 0 {
-                    let mut identity = Vec::with_capacity(rows * cols);
-                    for i in 0..rows {
-                        for j in 0..cols {
-                            if i == j {
-                                identity.push(Expression::Real(1.0));
-                            } else {
-                                identity.push(Expression::Real(0.0));
-                            }
-                        }
-                    }
-                    return Ok(Expression::Matrix(identity, rows, cols));
-                }
-
-                // Handle power of 1
-                if n == 1 {
-                    return Ok(Expression::Matrix(data, rows, cols));
-                }
-
-                // For powers > 1, use repeated multiplication
-                let mut result = Expression::Matrix(data.clone(), rows, cols);
-                for _ in 1..n {
-                    result = result.mat_mul(Expression::Matrix(data.clone(), rows, cols))?;
-                }
-
-                Ok(result)
-            }
+            (Expression::Matrix(_, _, _), _) => Err(EvaluationError::InvalidOperation(
+                "Cannot do power of matrix".to_string(),
+            )),
+            (Expression::Vector(_), _) => Err(EvaluationError::InvalidOperation(
+                "Cannot do power of matrix".to_string(),
+            )),
             (left, right) => Ok(Expression::Pow(Box::new(left), Box::new(right))),
         }
     }

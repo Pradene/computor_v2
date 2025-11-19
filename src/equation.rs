@@ -1,5 +1,5 @@
 use {
-    crate::{error::EvaluationError, expression::Expression, constant::EPSILON},
+    crate::{constant::EPSILON, error::EvaluationError, expression::Expression},
     std::collections::HashMap,
     std::fmt,
 };

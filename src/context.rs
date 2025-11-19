@@ -241,7 +241,11 @@ impl Context {
     }
 
     /// Detects circular dependencies like: a = b, then b = a
-    fn check_circular_dependency(&self, name: &str, symbol: &Symbol) -> Result<(), EvaluationError> {
+    fn check_circular_dependency(
+        &self,
+        name: &str,
+        symbol: &Symbol,
+    ) -> Result<(), EvaluationError> {
         let mut visited = HashSet::new();
         let expression = match symbol {
             Symbol::Variable(Variable { expression, .. }) => expression,
@@ -278,8 +282,10 @@ impl Context {
             visited.insert(variable.clone());
 
             // Look up the variable's definition and check its dependencies
-            if let Some(Symbol::Variable(Variable { expression: var_expr, .. })) =
-                self.get_symbol(&variable)
+            if let Some(Symbol::Variable(Variable {
+                expression: var_expr,
+                ..
+            })) = self.get_symbol(&variable)
             {
                 self.detect_cycle(name, var_expr, visited)?;
             } else if let Some(Symbol::Function(FunctionDefinition { body, .. })) =
