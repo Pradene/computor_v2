@@ -40,6 +40,7 @@ pub enum BuiltinFunction {
     Tan,
     Dot,
     Cross,
+    Exp,
 }
 
 impl BuiltinFunction {
@@ -54,6 +55,7 @@ impl BuiltinFunction {
             BuiltinFunction::Tan => "tan",
             BuiltinFunction::Dot => "dot",
             BuiltinFunction::Cross => "cross",
+            BuiltinFunction::Exp => "exp",
         }
     }
 
@@ -68,6 +70,7 @@ impl BuiltinFunction {
             BuiltinFunction::Tan => 1,
             BuiltinFunction::Dot => 2,
             BuiltinFunction::Cross => 2,
+            BuiltinFunction::Exp => 1,
         }
     }
 
@@ -82,6 +85,7 @@ impl BuiltinFunction {
             BuiltinFunction::Tan => args[0].tan(),
             BuiltinFunction::Dot => args[0].dot(args[1].clone()),
             BuiltinFunction::Cross => args[0].cross(args[1].clone()),
+            BuiltinFunction::Exp => args[0].exp(),
         }
     }
 }
@@ -145,6 +149,7 @@ impl Context {
             BuiltinFunction::Tan,
             BuiltinFunction::Dot,
             BuiltinFunction::Cross,
+            BuiltinFunction::Exp,
         ];
 
         let table = BUILTINS
