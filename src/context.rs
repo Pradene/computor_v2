@@ -38,6 +38,8 @@ pub enum BuiltinFunction {
     Cos,
     Sin,
     Tan,
+    Dot,
+    Cross,
 }
 
 impl BuiltinFunction {
@@ -50,32 +52,36 @@ impl BuiltinFunction {
             BuiltinFunction::Cos => "cos",
             BuiltinFunction::Sin => "sin",
             BuiltinFunction::Tan => "tan",
+            BuiltinFunction::Dot => "dot",
+            BuiltinFunction::Cross => "cross",
         }
     }
 
     pub fn arity(&self) -> usize {
-        // match self {
-        // BuiltinFunction::Rad => 1,
-        // BuiltinFunction::Norm => 1,
-        // BuiltinFunction::Abs => 1,
-        // BuiltinFunction::Sqrt => 1,
-        // BuiltinFunction::Cos => 1,
-        // BuiltinFunction::Sin => 1,
-        // BuiltinFunction::Tan => 1,
-        // }
-
-        1
+        match self {
+            BuiltinFunction::Rad => 1,
+            BuiltinFunction::Norm => 1,
+            BuiltinFunction::Abs => 1,
+            BuiltinFunction::Sqrt => 1,
+            BuiltinFunction::Cos => 1,
+            BuiltinFunction::Sin => 1,
+            BuiltinFunction::Tan => 1,
+            BuiltinFunction::Dot => 2,
+            BuiltinFunction::Cross => 2,
+        }
     }
 
-    pub fn call(&self, arg: Expression) -> Result<Expression, EvaluationError> {
+    pub fn call(&self, args: &[Expression]) -> Result<Expression, EvaluationError> {
         match self {
-            BuiltinFunction::Rad => arg.rad(),
-            BuiltinFunction::Norm => arg.norm(),
-            BuiltinFunction::Abs => arg.abs(),
-            BuiltinFunction::Sqrt => arg.sqrt(),
-            BuiltinFunction::Cos => arg.cos(),
-            BuiltinFunction::Sin => arg.sin(),
-            BuiltinFunction::Tan => arg.tan(),
+            BuiltinFunction::Rad => args[0].rad(),
+            BuiltinFunction::Norm => args[0].norm(),
+            BuiltinFunction::Abs => args[0].abs(),
+            BuiltinFunction::Sqrt => args[0].sqrt(),
+            BuiltinFunction::Cos => args[0].cos(),
+            BuiltinFunction::Sin => args[0].sin(),
+            BuiltinFunction::Tan => args[0].tan(),
+            BuiltinFunction::Dot => args[0].dot(args[1].clone()),
+            BuiltinFunction::Cross => args[0].cross(args[1].clone()),
         }
     }
 }
@@ -137,6 +143,8 @@ impl Context {
             BuiltinFunction::Cos,
             BuiltinFunction::Sin,
             BuiltinFunction::Tan,
+            BuiltinFunction::Dot,
+            BuiltinFunction::Cross,
         ];
 
         let table = BUILTINS

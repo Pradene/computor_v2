@@ -833,6 +833,58 @@ impl Expression {
             )),
         }
     }
+
+    pub fn dot(&self, rhs: Expression) -> Result<Expression, EvaluationError> {
+        match (self, rhs) {
+            (Expression::Vector(v1), Expression::Vector(v2)) => {
+                if v1.len() != v2.len() {
+                    return Err(EvaluationError::InvalidOperation(format!(
+                        "Dot product: vectors must have the same dimensions (got {} and {})",
+                        v1.len(),
+                        v2.len()
+                    )));
+                }
+
+                let result = v1.iter().zip(v2.iter()).try_fold(
+                    Expression::Complex(0.0, 0.0),
+                    |acc, (a, b)| {
+                        let product = a.clone().mul(b.clone())?;
+                        acc.add(product)
+                    },
+                )?;
+
+                Ok(result)
+            }
+            _ => Err(EvaluationError::InvalidOperation(
+                "Dot is not implemented for this type".to_string(),
+            )),
+        }
+    }
+
+    pub fn cross(&self, rhs: Expression) -> Result<Expression, EvaluationError> {
+        match (self, rhs) {
+            (Expression::Vector(v1), Expression::Vector(v2)) => {
+                if v1.len() != 3 || v2.len() != 3 {
+                    return Err(EvaluationError::InvalidOperation(format!(
+                        "Cross product: vectors must be 3 dimensions (got {} and {})",
+                        v1.len(),
+                        v2.len()
+                    )));
+                }
+
+                let result: Vec<Expression> = vec![
+                    (v1[1].clone().mul(v2[2].clone())?).sub(v1[2].clone().mul(v2[1].clone())?)?,
+                    (v1[2].clone().mul(v2[0].clone())?).sub(v1[0].clone().mul(v2[2].clone())?)?,
+                    (v1[0].clone().mul(v2[1].clone())?).sub(v1[1].clone().mul(v2[0].clone())?)?,
+                ];
+
+                Ok(Expression::Vector(result))
+            }
+            _ => Err(EvaluationError::InvalidOperation(
+                "Dot is not implemented for this type".to_string(),
+            )),
+        }
+    }
 }
 
 impl Expression {
@@ -944,8 +996,13 @@ impl Expression {
                             });
                         }
 
-                        let arg = fc.args[0].evaluate_internal(context, scope)?;
-                        function.call(arg)
+                        let evaluated_args: Vec<Expression> = fc
+                            .args
+                            .iter()
+                            .map(|e| e.evaluate_internal(context, scope))
+                            .collect::<Result<_, _>>()?;
+
+                        function.call(&evaluated_args)
                     }
                     None => {
                         // Evaluate arguments and keep as symbolic function call
