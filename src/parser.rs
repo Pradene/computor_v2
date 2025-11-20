@@ -135,9 +135,12 @@ impl Parser {
                                 token.position, param
                             )
                         ));
+                    } else if params.contains(param) {
+                        return Err(ParseError::DuplicateParameter(format!("Variable {} already found in function parameters", param)));
+                    } else {
+                        params.push(param.clone());
+                        expect_identifier = false;
                     }
-                    params.push(param.clone());
-                    expect_identifier = false;
                 }
                 TokenKind::Comma => {
                     if expect_identifier {
@@ -236,7 +239,7 @@ impl Parser {
                     let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mod(Box::new(left), Box::new(right));
                 }
-                TokenKind::Identifier(_) | TokenKind::LeftParen | TokenKind::Imaginary => {
+                TokenKind::Identifier(_) | TokenKind::Imaginary => {
                     let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mul(Box::new(left), Box::new(right));
                 }

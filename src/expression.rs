@@ -616,7 +616,7 @@ impl Expression {
 
             (left, right) if left.is_concrete() && right.is_concrete() => {
                 Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot matrix multiply {} and {}: incompatible types",
+                    "Cannot hadamard product {} and {}: incompatible types",
                     left, right
                 )))
             }
