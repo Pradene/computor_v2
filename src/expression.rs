@@ -1121,7 +1121,9 @@ impl Expression {
         const MAX_ITERATIONS: usize = 64;
 
         for _ in 0..MAX_ITERATIONS {
-            let collected = current.collect_terms()?;
+            let distributed = current.distribute()?;
+            
+            let collected = distributed.collect_terms()?;
             if collected == current {
                 break;
             }
@@ -1129,6 +1131,67 @@ impl Expression {
         }
 
         Ok(current)
+    }
+
+    /// Distribute multiplication over addition: a * (b + c) = a*b + a*c
+    fn distribute(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Mul(left, right) => {
+                let left_dist = left.distribute()?;
+                let right_dist = right.distribute()?;
+
+                match (&left_dist, &right_dist) {
+                    // a * (b + c) = a*b + a*c
+                    (_, Expression::Add(b, c)) => {
+                        let left_times_b = left_dist.clone().mul((**b).clone())?;
+                        let left_times_c = left_dist.clone().mul((**c).clone())?;
+                        left_times_b.add(left_times_c)
+                    }
+                    // a * (b - c) = a*b - a*c
+                    (_, Expression::Sub(b, c)) => {
+                        let left_times_b = left_dist.clone().mul((**b).clone())?;
+                        let left_times_c = left_dist.clone().mul((**c).clone())?;
+                        left_times_b.sub(left_times_c)
+                    }
+                    // (a + b) * c = a*c + b*c
+                    (Expression::Add(a, b), _) => {
+                        let a_times_right = (**a).clone().mul(right_dist.clone())?;
+                        let b_times_right = (**b).clone().mul(right_dist.clone())?;
+                        a_times_right.add(b_times_right)
+                    }
+                    // (a - b) * c = a*c - b*c
+                    (Expression::Sub(a, b), _) => {
+                        let a_times_right = (**a).clone().mul(right_dist.clone())?;
+                        let b_times_right = (**b).clone().mul(right_dist.clone())?;
+                        a_times_right.sub(b_times_right)
+                    }
+                    _ => Ok(Expression::Mul(
+                        Box::new(left_dist),
+                        Box::new(right_dist),
+                    )),
+                }
+            }
+            Expression::Add(left, right) => {
+                let left_dist = left.distribute()?;
+                let right_dist = right.distribute()?;
+                left_dist.add(right_dist)
+            }
+            Expression::Sub(left, right) => {
+                let left_dist = left.distribute()?;
+                let right_dist = right.distribute()?;
+                left_dist.sub(right_dist)
+            }
+            Expression::Neg(inner) => {
+                let inner_dist = inner.distribute()?;
+                inner_dist.neg()
+            }
+            Expression::Pow(left, right) => {
+                let left_dist = left.distribute()?;
+                let right_dist = right.distribute()?;
+                left_dist.pow(right_dist)
+            }
+            _ => Ok(self.clone()),
+        }
     }
 
     fn collect_terms(&self) -> Result<Expression, EvaluationError> {
