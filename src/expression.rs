@@ -701,9 +701,7 @@ impl Rem for Expression {
 
     fn rem(self, rhs: Self) -> Self::Output {
         if rhs.is_zero() {
-            return Err(EvaluationError::InvalidOperation(
-                "Modulo by zero".to_string(),
-            ));
+            return Err(EvaluationError::DivisionByZero);
         }
 
         match (self, rhs) {
