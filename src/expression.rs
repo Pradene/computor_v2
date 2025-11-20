@@ -561,8 +561,7 @@ impl Mul for Expression {
             }
 
             // Matrix * Vector
-            (Expression::Matrix(a, rows, cols), Expression::Vector(b))
-            | (Expression::Vector(b), Expression::Matrix(a, rows, cols)) => {
+            (Expression::Matrix(a, rows, cols), Expression::Vector(b)) => {
                 if cols != b.len() {
                     return Err(EvaluationError::InvalidOperation(
                         format!("Matrix-Vector multiplication: matrix has {} columns but vector has {} elements", 
