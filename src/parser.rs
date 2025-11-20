@@ -221,10 +221,10 @@ impl Parser {
                     let right = Self::parse_power(tokens, pos)?;
                     left = Expression::Mul(Box::new(left), Box::new(right));
                 }
-                TokenKind::MatMul => {
+                TokenKind::Hadamard => {
                     *pos += 1;
                     let right = Self::parse_power(tokens, pos)?;
-                    left = Expression::MatMul(Box::new(left), Box::new(right));
+                    left = Expression::Hadamard(Box::new(left), Box::new(right));
                 }
                 TokenKind::Divide => {
                     *pos += 1;

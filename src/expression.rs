@@ -29,7 +29,7 @@ pub enum Expression {
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
     Mul(Box<Expression>, Box<Expression>),
-    MatMul(Box<Expression>, Box<Expression>),
+    Hadamard(Box<Expression>, Box<Expression>),
     Div(Box<Expression>, Box<Expression>),
     Mod(Box<Expression>, Box<Expression>),
     Pow(Box<Expression>, Box<Expression>),
@@ -113,7 +113,7 @@ impl fmt::Display for Expression {
                     write!(f, "{}", right)?;
                 }
             }
-            Expression::MatMul(left, right) => {
+            Expression::Hadamard(left, right) => {
                 write!(f, "{} ** ", left)?;
                 // Add parentheses if right side is Add or Sub
                 if matches!(right.as_ref(), Expression::Add(..) | Expression::Sub(..)) {
@@ -206,7 +206,7 @@ impl Expression {
             Expression::Add(left, right)
             | Expression::Sub(left, right)
             | Expression::Mul(left, right)
-            | Expression::MatMul(left, right)
+            | Expression::Hadamard(left, right)
             | Expression::Div(left, right)
             | Expression::Mod(left, right)
             | Expression::Pow(left, right) => {
@@ -530,20 +530,34 @@ impl Mul for Expression {
                 }
             }
 
-            // Matrix * Matrix (Hadamard product)
+            // Matrix * Matrix
             (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
-                if a_rows != b_rows || a_cols != b_cols {
+                if a_cols != b_rows {
                     return Err(EvaluationError::InvalidOperation(
-                        format!("Hadamard product: matrices must have the same dimensions (got {}×{} and {}×{})", 
-                            a_rows, a_cols, b_rows, b_cols),
+                        "Matrix multiplication: left matrix columns must equal right matrix rows"
+                            .to_string(),
                     ));
                 }
-                let result: Result<Vec<Expression>, _> = a
-                    .iter()
-                    .zip(b.iter())
-                    .map(|(x, y)| x.clone().mul(y.clone())?.reduce())
-                    .collect();
-                Ok(Expression::Matrix(result?, a_rows, a_cols))
+
+                let mut result = Vec::with_capacity(a_rows * b_cols);
+
+                for i in 0..a_rows {
+                    for j in 0..b_cols {
+                        let mut sum = Expression::Complex(0.0, 0.0);
+
+                        for k in 0..a_cols {
+                            let left = a[i * a_cols + k].clone();
+                            let right = b[k * b_cols + j].clone();
+
+                            let product = left.mul(right)?;
+                            sum = sum.add(product)?.reduce()?;
+                        }
+
+                        result.push(sum);
+                    }
+                }
+
+                Ok(Expression::Matrix(result, a_rows, b_cols))
             }
 
             // Matrix * Vector
@@ -583,35 +597,21 @@ impl Mul for Expression {
 }
 
 impl Expression {
-    pub fn mat_mul(self, rhs: Self) -> Result<Self, EvaluationError> {
+    pub fn hadamard(self, rhs: Self) -> Result<Self, EvaluationError> {
         match (self, rhs) {
             (Expression::Matrix(a, a_rows, a_cols), Expression::Matrix(b, b_rows, b_cols)) => {
-                if a_cols != b_rows {
+                if a_rows != b_rows || a_cols != b_cols {
                     return Err(EvaluationError::InvalidOperation(
-                        "Matrix multiplication: left matrix columns must equal right matrix rows"
-                            .to_string(),
+                        format!("Hadamard product: matrices must have the same dimensions (got {}×{} and {}×{})", 
+                            a_rows, a_cols, b_rows, b_cols),
                     ));
                 }
-
-                let mut result = Vec::with_capacity(a_rows * b_cols);
-
-                for i in 0..a_rows {
-                    for j in 0..b_cols {
-                        let mut sum = Expression::Complex(0.0, 0.0);
-
-                        for k in 0..a_cols {
-                            let left = a[i * a_cols + k].clone();
-                            let right = b[k * b_cols + j].clone();
-
-                            let product = left.mul(right)?;
-                            sum = sum.add(product)?.reduce()?;
-                        }
-
-                        result.push(sum);
-                    }
-                }
-
-                Ok(Expression::Matrix(result, a_rows, b_cols))
+                let result: Result<Vec<Expression>, _> = a
+                    .iter()
+                    .zip(b.iter())
+                    .map(|(x, y)| x.clone().mul(y.clone())?.reduce())
+                    .collect();
+                Ok(Expression::Matrix(result?, a_rows, a_cols))
             }
 
             (left, right) if left.is_concrete() && right.is_concrete() => {
@@ -621,7 +621,7 @@ impl Expression {
                 )))
             }
 
-            (left, right) => Ok(Expression::MatMul(Box::new(left), Box::new(right.clone()))),
+            (left, right) => Ok(Expression::Hadamard(Box::new(left), Box::new(right.clone()))),
         }
     }
 }
@@ -1159,10 +1159,10 @@ impl Expression {
                 let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
                 left_eval.mul(right_eval)
             }
-            Expression::MatMul(left, right) => {
+            Expression::Hadamard(left, right) => {
                 let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
                 let right_eval = right.evaluate_internal(context, scope)?.reduce()?;
-                left_eval.mat_mul(right_eval)
+                left_eval.hadamard(right_eval)
             }
             Expression::Div(left, right) => {
                 let left_eval = left.evaluate_internal(context, scope)?.reduce()?;
@@ -1256,10 +1256,10 @@ impl Expression {
                 left_expanded.mul(right_expanded)
             }
 
-            Expression::MatMul(left, right) => {
+            Expression::Hadamard(left, right) => {
                 let left_expanded = left.expand_powers()?;
                 let right_expanded = right.expand_powers()?;
-                left_expanded.mat_mul(right_expanded)
+                left_expanded.hadamard(right_expanded)
             }
 
             Expression::Div(left, right) => {

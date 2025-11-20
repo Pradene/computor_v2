@@ -9,7 +9,7 @@ pub enum TokenKind {
     Imaginary,
     Plus,
     Minus,
-    MatMul,
+    Hadamard,
     Mul,
     Divide,
     Modulo,
@@ -33,7 +33,7 @@ impl fmt::Display for TokenKind {
             TokenKind::Imaginary => write!(f, "i"),
             TokenKind::Plus => write!(f, "+"),
             TokenKind::Minus => write!(f, "-"),
-            TokenKind::MatMul => write!(f, "**"),
+            TokenKind::Hadamard => write!(f, "**"),
             TokenKind::Mul => write!(f, "*"),
             TokenKind::Divide => write!(f, "/"),
             TokenKind::Modulo => write!(f, "%"),
@@ -174,7 +174,7 @@ impl Tokenizer {
                     if Self::current_char(chars, *position) == Some('*') {
                         *position += 1;
                         Ok(Token {
-                            kind: TokenKind::MatMul,
+                            kind: TokenKind::Hadamard,
                             position: *position - 2,
                             length: 2,
                         })

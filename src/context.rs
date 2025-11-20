@@ -322,7 +322,7 @@ impl Context {
             Expression::Add(left, right)
             | Expression::Sub(left, right)
             | Expression::Mul(left, right)
-            | Expression::MatMul(left, right)
+            | Expression::Hadamard(left, right)
             | Expression::Div(left, right)
             | Expression::Mod(left, right)
             | Expression::Pow(left, right) => {
