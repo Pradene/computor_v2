@@ -801,14 +801,14 @@ impl Expression {
             }
             Expression::Complex(r, i) => Ok(Self::complex_sqrt(*r, *i)),
 
-            expression if expression.is_concrete() => {
-                Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot sqrt {}: incompatible type",
-                    expression
-                )))
-            }
+            expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
+                format!("Cannot sqrt {}: incompatible type", expression),
+            )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall { name: "sqrt".to_string(), args: vec![expression.clone()] })),
+            expression => Ok(Expression::FunctionCall(FunctionCall {
+                name: "sqrt".to_string(),
+                args: vec![expression.clone()],
+            })),
         }
     }
 
@@ -816,14 +816,14 @@ impl Expression {
         match self {
             Expression::Real(n) => Ok(Expression::Real(n.abs())),
             Expression::Complex(r, i) => Ok(Expression::Real(Self::complex_abs(*r, *i))),
-            expression if expression.is_concrete() => {
-                Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot abs {}: incompatible type",
-                    expression
-                )))
-            }
+            expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
+                format!("Cannot abs {}: incompatible type", expression),
+            )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall { name: "abs".to_string(), args: vec![expression.clone()] })),
+            expression => Ok(Expression::FunctionCall(FunctionCall {
+                name: "abs".to_string(),
+                args: vec![expression.clone()],
+            })),
         }
     }
 
@@ -831,14 +831,14 @@ impl Expression {
         match self {
             Expression::Real(n) => Ok(Expression::Real(n.exp())),
             Expression::Complex(r, i) => Ok(Self::complex_exp(*r, *i)),
-            expression if expression.is_concrete() => {
-                Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot exp {}: incompatible type",
-                    expression
-                )))
-            }
+            expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
+                format!("Cannot exp {}: incompatible type", expression),
+            )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall { name: "exp".to_string(), args: vec![expression.clone()] })),
+            expression => Ok(Expression::FunctionCall(FunctionCall {
+                name: "exp".to_string(),
+                args: vec![expression.clone()],
+            })),
         }
     }
 
@@ -854,14 +854,14 @@ impl Expression {
 
                 sum.sqrt()
             }
-            expression if expression.is_concrete() => {
-                Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot norm {}: incompatible type",
-                    expression
-                )))
-            }
+            expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
+                format!("Cannot norm {}: incompatible type", expression),
+            )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall { name: "norm".to_string(), args: vec![expression.clone()] })),
+            expression => Ok(Expression::FunctionCall(FunctionCall {
+                name: "norm".to_string(),
+                args: vec![expression.clone()],
+            })),
         }
     }
 
@@ -872,14 +872,14 @@ impl Expression {
                 let res = if cos < EPSILON { 0.0 } else { cos };
                 Ok(Expression::Real(res))
             }
-            expression if expression.is_concrete() => {
-                Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot cos {}: incompatible type",
-                    expression
-                )))
-            }
+            expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
+                format!("Cannot cos {}: incompatible type", expression),
+            )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall { name: "cos".to_string(), args: vec![expression.clone()] })),
+            expression => Ok(Expression::FunctionCall(FunctionCall {
+                name: "cos".to_string(),
+                args: vec![expression.clone()],
+            })),
         }
     }
 
@@ -890,14 +890,14 @@ impl Expression {
                 let res = if sin < EPSILON { 0.0 } else { sin };
                 Ok(Expression::Real(res))
             }
-            expression if expression.is_concrete() => {
-                Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot sin {}: incompatible type",
-                    expression
-                )))
-            }
+            expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
+                format!("Cannot sin {}: incompatible type", expression),
+            )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall { name: "sin".to_string(), args: vec![expression.clone()] })),
+            expression => Ok(Expression::FunctionCall(FunctionCall {
+                name: "sin".to_string(),
+                args: vec![expression.clone()],
+            })),
         }
     }
 
@@ -908,28 +908,28 @@ impl Expression {
                 let res = if tan < EPSILON { 0.0 } else { tan };
                 Ok(Expression::Real(res))
             }
-            expression if expression.is_concrete() => {
-                Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot tan {}: incompatible type",
-                    expression
-                )))
-            }
+            expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
+                format!("Cannot tan {}: incompatible type", expression),
+            )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall { name: "tan".to_string(), args: vec![expression.clone()] })),
+            expression => Ok(Expression::FunctionCall(FunctionCall {
+                name: "tan".to_string(),
+                args: vec![expression.clone()],
+            })),
         }
     }
 
     pub fn rad(&self) -> Result<Expression, EvaluationError> {
         match self {
             Expression::Real(n) => Ok(Expression::Real(n.to_radians())),
-            expression if expression.is_concrete() => {
-                Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot rad {}: incompatible type",
-                    expression
-                )))
-            }
+            expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
+                format!("Cannot rad {}: incompatible type", expression),
+            )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall { name: "rad".to_string(), args: vec![expression.clone()] })),
+            expression => Ok(Expression::FunctionCall(FunctionCall {
+                name: "rad".to_string(),
+                args: vec![expression.clone()],
+            })),
         }
     }
 
@@ -961,7 +961,10 @@ impl Expression {
                 )))
             }
 
-            (left, right) => Ok(Expression::FunctionCall(FunctionCall { name: "dot".to_string(), args: vec![ left.clone(), right.clone()] })),
+            (left, right) => Ok(Expression::FunctionCall(FunctionCall {
+                name: "dot".to_string(),
+                args: vec![left.clone(), right.clone()],
+            })),
         }
     }
 
@@ -991,7 +994,10 @@ impl Expression {
                 )))
             }
 
-            (left, right) => Ok(Expression::FunctionCall(FunctionCall { name: "cross".to_string(), args: vec![ left.clone(), right.clone() ] })),
+            (left, right) => Ok(Expression::FunctionCall(FunctionCall {
+                name: "cross".to_string(),
+                args: vec![left.clone(), right.clone()],
+            })),
         }
     }
 }
@@ -1182,16 +1188,124 @@ impl Expression {
         const MAX_ITERATIONS: usize = 64;
 
         for _ in 0..MAX_ITERATIONS {
-            let distributed = current.distribute()?;
-            
+            let expanded = current.expand_powers()?;
+            let distributed = expanded.distribute()?;
+
             let collected = distributed.collect_terms()?;
             if collected == current {
                 break;
             }
+
             current = collected;
         }
 
         Ok(current)
+    }
+
+    /// Expand powers like (a + b)^2 into (a + b) * (a + b)
+    fn expand_powers(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Pow(base, right) => {
+                // First recursively expand the base and exponent
+                let base_expanded = base.expand_powers()?;
+                let right_expanded = right.expand_powers()?;
+
+                // Check if we should expand this power
+                if let Expression::Real(n) = right_expanded {
+                    if n >= 2.0 && n == n.floor() {
+                        let n = n as usize;
+                        // Expand (a ± b)^n, (a * b)^n, etc.
+                        match &base_expanded {
+                            Expression::Add(..) | Expression::Sub(..) | Expression::Mul(..) => {
+                                // Start with the base
+                                let mut result = base_expanded.clone();
+
+                                // Multiply by itself (n-1) times
+                                for _ in 1..n {
+                                    result = result.mul(base_expanded.clone())?;
+                                }
+                                return Ok(result);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                // If no expansion, recursively expand children
+                Ok(Expression::Pow(
+                    Box::new(base_expanded),
+                    Box::new(right_expanded),
+                ))
+            }
+
+            Expression::Add(left, right) => {
+                let left_expanded = left.expand_powers()?;
+                let right_expanded = right.expand_powers()?;
+                left_expanded.add(right_expanded)
+            }
+
+            Expression::Sub(left, right) => {
+                let left_expanded = left.expand_powers()?;
+                let right_expanded = right.expand_powers()?;
+                left_expanded.sub(right_expanded)
+            }
+
+            Expression::Mul(left, right) => {
+                let left_expanded = left.expand_powers()?;
+                let right_expanded = right.expand_powers()?;
+                left_expanded.mul(right_expanded)
+            }
+
+            Expression::MatMul(left, right) => {
+                let left_expanded = left.expand_powers()?;
+                let right_expanded = right.expand_powers()?;
+                left_expanded.mat_mul(right_expanded)
+            }
+
+            Expression::Div(left, right) => {
+                let left_expanded = left.expand_powers()?;
+                let right_expanded = right.expand_powers()?;
+                left_expanded.div(right_expanded)
+            }
+
+            Expression::Mod(left, right) => {
+                let left_expanded = left.expand_powers()?;
+                let right_expanded = right.expand_powers()?;
+                left_expanded.rem(right_expanded)
+            }
+
+            Expression::Neg(inner) => {
+                let inner_expanded = inner.expand_powers()?;
+                inner_expanded.neg()
+            }
+
+            Expression::Paren(inner) => {
+                let inner_expanded = inner.expand_powers()?;
+                Ok(Expression::Paren(Box::new(inner_expanded)))
+            }
+
+            Expression::Vector(v) => {
+                let expanded: Result<Vec<_>, _> = v.iter().map(|e| e.expand_powers()).collect();
+                Ok(Expression::Vector(expanded?))
+            }
+
+            Expression::Matrix(data, rows, cols) => {
+                let expanded: Result<Vec<_>, _> = data.iter().map(|e| e.expand_powers()).collect();
+                Ok(Expression::Matrix(expanded?, *rows, *cols))
+            }
+
+            Expression::FunctionCall(fc) => {
+                let expanded_args: Result<Vec<_>, _> =
+                    fc.args.iter().map(|e| e.expand_powers()).collect();
+                Ok(Expression::FunctionCall(FunctionCall {
+                    name: fc.name.clone(),
+                    args: expanded_args?,
+                }))
+            }
+
+            // Base cases: Real, Complex, Variable - no expansion needed
+            _ => Ok(self.clone()),
+        }
     }
 
     /// Distribute multiplication over addition: a * (b + c) = a*b + a*c
@@ -1226,10 +1340,7 @@ impl Expression {
                         let b_times_right = (**b).clone().mul(right_dist.clone())?;
                         a_times_right.sub(b_times_right)
                     }
-                    _ => Ok(Expression::Mul(
-                        Box::new(left_dist),
-                        Box::new(right_dist),
-                    )),
+                    _ => Ok(Expression::Mul(Box::new(left_dist), Box::new(right_dist))),
                 }
             }
             Expression::Add(left, right) => {
