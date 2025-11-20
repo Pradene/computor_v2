@@ -616,12 +616,12 @@ impl Expression {
 
             (left, right) if left.is_concrete() && right.is_concrete() => {
                 Err(EvaluationError::InvalidOperation(format!(
-                    "Cannot multiply {} and {}: incompatible types",
+                    "Cannot matrix multiply {} and {}: incompatible types",
                     left, right
                 )))
             }
 
-            (left, right) => Ok(Expression::Mul(Box::new(left), Box::new(right.clone()))),
+            (left, right) => Ok(Expression::MatMul(Box::new(left), Box::new(right.clone()))),
         }
     }
 }
@@ -688,7 +688,7 @@ impl Div for Expression {
                 )))
             }
 
-            (left, right) => Ok(Expression::Mul(Box::new(left), Box::new(right.clone()))),
+            (left, right) => Ok(Expression::Div(Box::new(left), Box::new(right.clone()))),
         }
     }
 }
@@ -713,7 +713,7 @@ impl Rem for Expression {
                 )))
             }
 
-            (left, right) => Ok(Expression::Mul(
+            (left, right) => Ok(Expression::Mod(
                 Box::new(left.clone()),
                 Box::new(right.clone()),
             )),
@@ -776,7 +776,17 @@ impl Expression {
             (Expression::Vector(_), _) => Err(EvaluationError::InvalidOperation(
                 "Cannot do power of vector".to_string(),
             )),
-            (left, right) => Ok(Expression::Pow(Box::new(left), Box::new(right))),
+            (left, right) if left.is_concrete() && right.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot power {} and {}: incompatible types",
+                    left, right
+                )))
+            }
+
+            (left, right) => Ok(Expression::Pow(
+                Box::new(left.clone()),
+                Box::new(right.clone()),
+            )),
         }
     }
 
@@ -790,9 +800,15 @@ impl Expression {
                 }
             }
             Expression::Complex(r, i) => Ok(Self::complex_sqrt(*r, *i)),
-            _ => Err(EvaluationError::InvalidOperation(
-                "Sqrt is not implemented for this type".to_string(),
-            )),
+
+            expression if expression.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot sqrt {}: incompatible type",
+                    expression
+                )))
+            }
+
+            expression => Ok(Expression::FunctionCall(FunctionCall { name: "sqrt".to_string(), args: vec![expression.clone()] })),
         }
     }
 
@@ -800,9 +816,14 @@ impl Expression {
         match self {
             Expression::Real(n) => Ok(Expression::Real(n.abs())),
             Expression::Complex(r, i) => Ok(Expression::Real(Self::complex_abs(*r, *i))),
-            _ => Err(EvaluationError::InvalidOperation(
-                "Abs is not implemented for this type".to_string(),
-            )),
+            expression if expression.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot abs {}: incompatible type",
+                    expression
+                )))
+            }
+
+            expression => Ok(Expression::FunctionCall(FunctionCall { name: "abs".to_string(), args: vec![expression.clone()] })),
         }
     }
 
@@ -810,9 +831,14 @@ impl Expression {
         match self {
             Expression::Real(n) => Ok(Expression::Real(n.exp())),
             Expression::Complex(r, i) => Ok(Self::complex_exp(*r, *i)),
-            _ => Err(EvaluationError::InvalidOperation(
-                "Exp is not implemented for this type".to_string(),
-            )),
+            expression if expression.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot exp {}: incompatible type",
+                    expression
+                )))
+            }
+
+            expression => Ok(Expression::FunctionCall(FunctionCall { name: "exp".to_string(), args: vec![expression.clone()] })),
         }
     }
 
@@ -828,9 +854,14 @@ impl Expression {
 
                 sum.sqrt()
             }
-            _ => Err(EvaluationError::InvalidOperation(
-                "Exp is not implemented for this type".to_string(),
-            )),
+            expression if expression.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot norm {}: incompatible type",
+                    expression
+                )))
+            }
+
+            expression => Ok(Expression::FunctionCall(FunctionCall { name: "norm".to_string(), args: vec![expression.clone()] })),
         }
     }
 
@@ -841,9 +872,14 @@ impl Expression {
                 let res = if cos < EPSILON { 0.0 } else { cos };
                 Ok(Expression::Real(res))
             }
-            _ => Err(EvaluationError::InvalidOperation(
-                "Rad is not implemented for this type".to_string(),
-            )),
+            expression if expression.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot cos {}: incompatible type",
+                    expression
+                )))
+            }
+
+            expression => Ok(Expression::FunctionCall(FunctionCall { name: "cos".to_string(), args: vec![expression.clone()] })),
         }
     }
 
@@ -854,9 +890,14 @@ impl Expression {
                 let res = if sin < EPSILON { 0.0 } else { sin };
                 Ok(Expression::Real(res))
             }
-            _ => Err(EvaluationError::InvalidOperation(
-                "Rad is not implemented for this type".to_string(),
-            )),
+            expression if expression.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot sin {}: incompatible type",
+                    expression
+                )))
+            }
+
+            expression => Ok(Expression::FunctionCall(FunctionCall { name: "sin".to_string(), args: vec![expression.clone()] })),
         }
     }
 
@@ -867,18 +908,28 @@ impl Expression {
                 let res = if tan < EPSILON { 0.0 } else { tan };
                 Ok(Expression::Real(res))
             }
-            _ => Err(EvaluationError::InvalidOperation(
-                "Rad is not implemented for this type".to_string(),
-            )),
+            expression if expression.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot tan {}: incompatible type",
+                    expression
+                )))
+            }
+
+            expression => Ok(Expression::FunctionCall(FunctionCall { name: "tan".to_string(), args: vec![expression.clone()] })),
         }
     }
 
     pub fn rad(&self) -> Result<Expression, EvaluationError> {
         match self {
             Expression::Real(n) => Ok(Expression::Real(n.to_radians())),
-            _ => Err(EvaluationError::InvalidOperation(
-                "Rad is not implemented for this type".to_string(),
-            )),
+            expression if expression.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot rad {}: incompatible type",
+                    expression
+                )))
+            }
+
+            expression => Ok(Expression::FunctionCall(FunctionCall { name: "rad".to_string(), args: vec![expression.clone()] })),
         }
     }
 
@@ -903,9 +954,14 @@ impl Expression {
 
                 Ok(result)
             }
-            _ => Err(EvaluationError::InvalidOperation(
-                "Dot is not implemented for this type".to_string(),
-            )),
+            (left, right) if left.is_concrete() && right.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot dot {} and {}: incompatible type",
+                    left, right
+                )))
+            }
+
+            (left, right) => Ok(Expression::FunctionCall(FunctionCall { name: "dot".to_string(), args: vec![ left.clone(), right.clone()] })),
         }
     }
 
@@ -928,9 +984,14 @@ impl Expression {
 
                 Ok(Expression::Vector(result))
             }
-            _ => Err(EvaluationError::InvalidOperation(
-                "Dot is not implemented for this type".to_string(),
-            )),
+            (left, right) if left.is_concrete() && right.is_concrete() => {
+                Err(EvaluationError::InvalidOperation(format!(
+                    "Cannot cross {} and {}: incompatible type",
+                    left, right
+                )))
+            }
+
+            (left, right) => Ok(Expression::FunctionCall(FunctionCall { name: "cross".to_string(), args: vec![ left.clone(), right.clone() ] })),
         }
     }
 }
