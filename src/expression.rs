@@ -95,12 +95,60 @@ impl fmt::Display for Expression {
             Expression::Paren(inner) => write!(f, "( {} )", inner)?,
             Expression::Neg(operand) => write!(f, "-{}", operand)?,
             Expression::Add(left, right) => write!(f, "{} + {}", left, right)?,
-            Expression::Sub(left, right) => write!(f, "{} - {}", left, right)?,
-            Expression::Mul(left, right) => write!(f, "{} * {}", left, right)?,
-            Expression::MatMul(left, right) => write!(f, "{} ** {}", left, right)?,
-            Expression::Div(left, right) => write!(f, "{} / {}", left, right)?,
-            Expression::Mod(left, right) => write!(f, "{} % {}", left, right)?,
-            Expression::Pow(left, right) => write!(f, "{} ^ {}", left, right)?,
+            Expression::Sub(left, right) => {
+                write!(f, "{} - ", left)?;
+                // Add parentheses if right side is Add or Sub
+                if matches!(right.as_ref(), Expression::Add(..) | Expression::Sub(..)) {
+                    write!(f, "( {} )", right)?;
+                } else {
+                    write!(f, "{}", right)?;
+                }
+            }
+            Expression::Mul(left, right) => {
+                write!(f, "{} * ", left)?;
+                // Add parentheses if right side is Add or Sub
+                if matches!(right.as_ref(), Expression::Add(..) | Expression::Sub(..)) {
+                    write!(f, "( {} )", right)?;
+                } else {
+                    write!(f, "{}", right)?;
+                }
+            }
+            Expression::MatMul(left, right) => {
+                write!(f, "{} ** ", left)?;
+                // Add parentheses if right side is Add or Sub
+                if matches!(right.as_ref(), Expression::Add(..) | Expression::Sub(..)) {
+                    write!(f, "( {} )", right)?;
+                } else {
+                    write!(f, "{}", right)?;
+                }
+            }
+            Expression::Div(left, right) => {
+                write!(f, "{} / ", left)?;
+                // Add parentheses if right side is Add or Sub
+                if matches!(right.as_ref(), Expression::Add(..) | Expression::Sub(..)) {
+                    write!(f, "( {} )", right)?;
+                } else {
+                    write!(f, "{}", right)?;
+                }
+            }
+            Expression::Mod(left, right) => {
+                write!(f, "{} % ", left)?;
+                // Add parentheses if right side is Add or Sub
+                if matches!(right.as_ref(), Expression::Add(..) | Expression::Sub(..)) {
+                    write!(f, "( {} )", right)?;
+                } else {
+                    write!(f, "{}", right)?;
+                }
+            }
+            Expression::Pow(left, right) => {
+                write!(f, "{} ^ ", left)?;
+                // Add parentheses if right side is Add or Sub
+                if matches!(right.as_ref(), Expression::Add(..) | Expression::Sub(..)) {
+                    write!(f, "( {} )", right)?;
+                } else {
+                    write!(f, "{}", right)?;
+                }
+            }
         };
 
         Ok(())
