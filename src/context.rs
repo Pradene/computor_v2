@@ -240,17 +240,34 @@ impl Context {
             return Err(EvaluationError::CannotOverrideBuiltin(name));
         }
 
-        self.check_circular_dependency(&name, &symbol)?;
-
-        self.table.insert(name, symbol.clone());
-
-        let expression = match symbol {
-            Symbol::Variable(Variable { expression, .. }) => expression,
-            Symbol::Function(FunctionDefinition { body, .. }) => body,
+        // Extract the expression before inserting into table
+        let expression = match &symbol {
+            Symbol::Variable(Variable { expression, .. }) => expression.clone(),
+            Symbol::Function(FunctionDefinition { body, .. }) => body.clone(),
             Symbol::BuiltinFunction(_) => unreachable!(),
         };
 
-        expression.evaluate(self)?.reduce()
+        // Evaluate the expression before inserting the symbol into the table
+        // This prevents infinite recursion when a variable references itself
+        let evaluated = expression.evaluate(self)?.reduce()?;
+
+        // Now update the symbol with the evaluated expression
+        let updated_symbol = match symbol {
+            Symbol::Variable(Variable { name: var_name, .. }) => Symbol::Variable(Variable {
+                name: var_name,
+                expression: evaluated.clone(),
+            }),
+            Symbol::Function(func) => Symbol::Function(func),
+            Symbol::BuiltinFunction(b) => Symbol::BuiltinFunction(b),
+        };
+
+        // Check for circular dependencies with the evaluated expression
+        self.check_circular_dependency(&name, &updated_symbol)?;
+
+        // Finally insert into the table
+        self.table.insert(name, updated_symbol);
+
+        Ok(evaluated)
     }
 
     /// Detects circular dependencies like: a = b, then b = a
@@ -260,13 +277,17 @@ impl Context {
         symbol: &Symbol,
     ) -> Result<(), EvaluationError> {
         let mut visited = HashSet::new();
-        let expression = match symbol {
-            Symbol::Variable(Variable { expression, .. }) => expression,
-            Symbol::Function(FunctionDefinition { body, .. }) => body,
-            Symbol::BuiltinFunction(_) => return Ok(()),
-        };
 
-        self.detect_cycle(name, expression, &mut visited)
+        match symbol {
+            Symbol::Variable(Variable { expression, .. }) => {
+                self.detect_cycle(name, expression, &mut visited)
+            }
+            Symbol::Function(FunctionDefinition { body, params, .. }) => {
+                // For functions, exclude parameters from cycle detection
+                self.detect_cycle_function(name, body, &mut visited, params)
+            }
+            Symbol::BuiltinFunction(_) => Ok(()),
+        }
     }
 
     /// Recursively check if assigning `name` to `expression` creates a cycle
@@ -301,10 +322,58 @@ impl Context {
             })) = self.get_symbol(&variable)
             {
                 self.detect_cycle(name, var_expr, visited)?;
-            } else if let Some(Symbol::Function(FunctionDefinition { body, .. })) =
+            } else if let Some(Symbol::Function(FunctionDefinition { body, params, .. })) =
                 self.get_symbol(&variable)
             {
-                self.detect_cycle(name, body, visited)?;
+                self.detect_cycle_function(name, body, visited, params)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check cycles in function bodies, excluding parameters
+    fn detect_cycle_function(
+        &self,
+        name: &str,
+        expression: &Expression,
+        visited: &mut HashSet<String>,
+        params: &[String],
+    ) -> Result<(), EvaluationError> {
+        let mut variables = Vec::new();
+        Self::collect_all_variables(expression, &mut variables);
+
+        for variable in variables {
+            // Skip function parameters - they're local, not free variables
+            if params.iter().any(|p| p == &variable) {
+                continue;
+            }
+
+            if variable == name {
+                return Err(EvaluationError::InvalidOperation(format!(
+                    "Circular dependency detected: cannot define '{}' in terms of itself",
+                    name
+                )));
+            }
+
+            if visited.contains(&variable) {
+                continue;
+            }
+            visited.insert(variable.clone());
+
+            if let Some(Symbol::Variable(Variable {
+                expression: var_expr,
+                ..
+            })) = self.get_symbol(&variable)
+            {
+                self.detect_cycle(name, var_expr, visited)?;
+            } else if let Some(Symbol::Function(FunctionDefinition {
+                body,
+                params: fn_params,
+                ..
+            })) = self.get_symbol(&variable)
+            {
+                self.detect_cycle_function(name, body, visited, fn_params)?;
             }
         }
 

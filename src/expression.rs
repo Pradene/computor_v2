@@ -872,7 +872,7 @@ impl Expression {
         match self {
             Expression::Real(n) => {
                 let cos = n.cos();
-                let res = if cos < EPSILON { 0.0 } else { cos };
+                let res = if cos.abs() < EPSILON { 0.0 } else { cos };
                 Ok(Expression::Real(res))
             }
             expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
@@ -890,7 +890,7 @@ impl Expression {
         match self {
             Expression::Real(n) => {
                 let sin = n.sin();
-                let res = if sin < EPSILON { 0.0 } else { sin };
+                let res = if sin.abs() < EPSILON { 0.0 } else { sin };
                 Ok(Expression::Real(res))
             }
             expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
@@ -908,7 +908,7 @@ impl Expression {
         match self {
             Expression::Real(n) => {
                 let tan = n.tan();
-                let res = if tan < EPSILON { 0.0 } else { tan };
+                let res = if tan.abs() < EPSILON { 0.0 } else { tan };
                 Ok(Expression::Real(res))
             }
             expression if expression.is_concrete() => Err(EvaluationError::InvalidOperation(
