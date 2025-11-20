@@ -1139,8 +1139,8 @@ impl Expression {
                 let inner = inner.evaluate_internal(context, scope)?.reduce()?;
 
                 match inner {
-                    Expression::Real(_) | Expression::Complex(_, _) => Ok(inner),
-                    _ => Ok(Expression::Paren(Box::new(inner))),
+                    expression if expression.is_concrete() => Ok(expression),
+                    expression => Ok(Expression::Paren(Box::new(expression))),
                 }
             }
 
