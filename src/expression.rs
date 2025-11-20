@@ -621,7 +621,10 @@ impl Expression {
                 )))
             }
 
-            (left, right) => Ok(Expression::Hadamard(Box::new(left), Box::new(right.clone()))),
+            (left, right) => Ok(Expression::Hadamard(
+                Box::new(left),
+                Box::new(right.clone()),
+            )),
         }
     }
 }
@@ -1315,7 +1318,17 @@ impl Expression {
                 let left_dist = left.distribute()?;
                 let right_dist = right.distribute()?;
 
-                match (&left_dist, &right_dist) {
+                // Unwrap parentheses to check what's inside
+                let left_unwrapped = match &left_dist {
+                    Expression::Paren(inner) => inner.as_ref(),
+                    other => other,
+                };
+                let right_unwrapped = match &right_dist {
+                    Expression::Paren(inner) => inner.as_ref(),
+                    other => other,
+                };
+
+                match (left_unwrapped, right_unwrapped) {
                     // a * (b + c) = a*b + a*c
                     (_, Expression::Add(b, c)) => {
                         let left_times_b = left_dist.clone().mul((**b).clone())?;
