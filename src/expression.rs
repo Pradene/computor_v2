@@ -174,24 +174,12 @@ impl Expression {
         )
     }
 
-    pub fn is_symbolic(&self) -> bool {
-        !self.is_concrete()
-    }
-
     pub fn is_real(&self) -> bool {
         match self {
             Expression::Real(_) => true,
             Expression::Complex(_, i) => i.abs() < EPSILON,
             _ => false,
         }
-    }
-
-    pub fn is_variable(&self) -> bool {
-        matches!(self, Expression::Variable(_))
-    }
-
-    pub fn is_function(&self) -> bool {
-        matches!(self, Expression::FunctionCall(_))
     }
 
     pub fn contains_variable(&self, var_name: &str) -> bool {

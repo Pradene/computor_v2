@@ -55,7 +55,6 @@ impl fmt::Display for TokenKind {
 pub struct Token {
     pub kind: TokenKind,
     pub position: usize,
-    pub length: usize,
 }
 
 impl fmt::Display for Token {
@@ -150,7 +149,6 @@ impl Tokenizer {
             None => Ok(Token {
                 kind: TokenKind::Eof,
                 position: *position,
-                length: 0,
             }),
             Some(ch) => match ch {
                 '+' => {
@@ -158,7 +156,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Plus,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 '-' => {
@@ -166,7 +163,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Minus,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 '*' => {
@@ -176,13 +172,11 @@ impl Tokenizer {
                         Ok(Token {
                             kind: TokenKind::Hadamard,
                             position: *position - 2,
-                            length: 2,
                         })
                     } else {
                         Ok(Token {
                             kind: TokenKind::Mul,
                             position: *position - 1,
-                            length: 1,
                         })
                     }
                 }
@@ -191,7 +185,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Divide,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 '%' => {
@@ -199,7 +192,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Modulo,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 '^' => {
@@ -207,7 +199,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Power,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 '(' => {
@@ -215,7 +206,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::LeftParen,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 ')' => {
@@ -223,7 +213,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::RightParen,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 '=' => {
@@ -231,7 +220,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Equal,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 '[' => {
@@ -239,7 +227,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::LeftBracket,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 ']' => {
@@ -247,7 +234,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::RightBracket,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 ';' => {
@@ -255,7 +241,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Semicolon,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 '?' => {
@@ -263,7 +248,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Question,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 ',' => {
@@ -271,7 +255,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Comma,
                         position: *position - 1,
-                        length: 1,
                     })
                 }
                 _ if ch == 'i' || ch == 'I' => {
@@ -282,14 +265,12 @@ impl Tokenizer {
                             Ok(Token {
                                 kind: TokenKind::Identifier(ident),
                                 position: start,
-                                length: *position - start,
                             })
                         } else {
                             *position += 1;
                             Ok(Token {
                                 kind: TokenKind::Imaginary,
                                 position: start,
-                                length: 1,
                             })
                         }
                     } else {
@@ -297,7 +278,6 @@ impl Tokenizer {
                         Ok(Token {
                             kind: TokenKind::Imaginary,
                             position: start,
-                            length: 1,
                         })
                     }
                 }
@@ -307,7 +287,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Number(num),
                         position: start,
-                        length: *position - start,
                     })
                 }
                 _ if ch.is_ascii_alphabetic() => {
@@ -316,7 +295,6 @@ impl Tokenizer {
                     Ok(Token {
                         kind: TokenKind::Identifier(ident),
                         position: start,
-                        length: *position - start,
                     })
                 }
                 _ => Err(ParseError::UnexpectedToken(ch.to_string())),
