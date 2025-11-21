@@ -1002,13 +1002,7 @@ impl Expression {
     ) -> Result<Expression, EvaluationError> {
         match self {
             Expression::Real(_) => Ok(self.clone()),
-            Expression::Complex(real, imag) => {
-                if imag.abs() < EPSILON {
-                    Ok(Expression::Real(*real))
-                } else {
-                    Ok(self.clone())
-                }
-            }
+            Expression::Complex(_, _) => Ok(self.clone()),
 
             Expression::Vector(vector) => {
                 let mut evaluated_vector = Vec::new();
@@ -1173,18 +1167,17 @@ impl Expression {
 
     pub fn reduce(&self) -> Result<Expression, EvaluationError> {
         let mut current = self.clone();
-        const MAX_ITERATIONS: usize = 64;
+        let mut previous = String::new();
+        const MAX_ITERATIONS: usize = 32;
 
-        for _ in 0..MAX_ITERATIONS {
-            let expanded = current.expand_powers()?;
-            let distributed = expanded.distribute()?;
-
-            let collected = distributed.collect_terms()?;
-            if collected == current {
+        for iteration in 0..MAX_ITERATIONS {
+            let current_str = format!("{:?}", current);
+            if iteration > 0 && current_str == previous {
                 break;
             }
+            previous = current_str;
 
-            current = collected;
+            current = current.expand_powers()?.distribute()?.collect_terms()?;
         }
 
         Ok(current)
