@@ -240,34 +240,21 @@ impl Context {
             return Err(EvaluationError::CannotOverrideBuiltin(name));
         }
 
-        // Extract the expression before inserting into table
+        // Check for circular dependencies before inserting
+        self.check_circular_dependency(&name, &symbol)?;
+
+        // Extract the expression to return evaluated result
         let expression = match &symbol {
             Symbol::Variable(Variable { expression, .. }) => expression.clone(),
             Symbol::Function(FunctionDefinition { body, .. }) => body.clone(),
             Symbol::BuiltinFunction(_) => unreachable!(),
         };
 
-        // Evaluate the expression before inserting the symbol into the table
-        // This prevents infinite recursion when a variable references itself
-        let evaluated = expression.evaluate(self)?.reduce()?;
+        // Store the original (unevaluated) expression
+        self.table.insert(name, symbol);
 
-        // Now update the symbol with the evaluated expression
-        let updated_symbol = match symbol {
-            Symbol::Variable(Variable { name: var_name, .. }) => Symbol::Variable(Variable {
-                name: var_name,
-                expression: evaluated.clone(),
-            }),
-            Symbol::Function(func) => Symbol::Function(func),
-            Symbol::BuiltinFunction(b) => Symbol::BuiltinFunction(b),
-        };
-
-        // Check for circular dependencies with the evaluated expression
-        self.check_circular_dependency(&name, &updated_symbol)?;
-
-        // Finally insert into the table
-        self.table.insert(name, updated_symbol);
-
-        Ok(evaluated)
+        // Evaluate to show the current value, but don't store it
+        expression.evaluate(self)?.reduce()
     }
 
     /// Detects circular dependencies like: a = b, then b = a
@@ -277,13 +264,13 @@ impl Context {
         symbol: &Symbol,
     ) -> Result<(), EvaluationError> {
         let mut visited = HashSet::new();
+        visited.insert(name.to_string());
 
         match symbol {
             Symbol::Variable(Variable { expression, .. }) => {
                 self.detect_cycle(name, expression, &mut visited)
             }
             Symbol::Function(FunctionDefinition { body, params, .. }) => {
-                // For functions, exclude parameters from cycle detection
                 self.detect_cycle_function(name, body, &mut visited, params)
             }
             Symbol::BuiltinFunction(_) => Ok(()),
@@ -302,20 +289,23 @@ impl Context {
 
         for variable in variables {
             if variable == name {
-                // Found a direct reference back to the variable being assigned
                 return Err(EvaluationError::InvalidOperation(format!(
                     "Circular dependency detected: cannot define '{}' in terms of itself",
                     name
                 )));
             }
 
-            // Prevent infinite recursion on cycles during detection
+            // If we've already visited this variable in this path, we have a cycle
             if visited.contains(&variable) {
-                continue;
+                return Err(EvaluationError::InvalidOperation(format!(
+                    "Circular dependency detected: '{}' depends on '{}' which depends back on '{}'",
+                    name, variable, name
+                )));
             }
+
             visited.insert(variable.clone());
 
-            // Look up the variable's definition and check its dependencies
+            // Recursively check this variable's dependencies
             if let Some(Symbol::Variable(Variable {
                 expression: var_expr,
                 ..
@@ -325,8 +315,55 @@ impl Context {
             } else if let Some(Symbol::Function(FunctionDefinition { body, params, .. })) =
                 self.get_symbol(&variable)
             {
-                self.detect_cycle_function(name, body, visited, params)?;
+                // For functions, we need to check the free variables in the body
+                // (excluding parameters which are bound)
+                let mut func_vars = Vec::new();
+                Self::collect_all_variables(body, &mut func_vars);
+
+                // Filter out parameters (they're local bindings)
+                let free_vars: Vec<String> = func_vars
+                    .into_iter()
+                    .filter(|v| !params.contains(v))
+                    .collect();
+
+                // Check each free variable
+                for free_var in free_vars {
+                    if free_var == name {
+                        return Err(EvaluationError::InvalidOperation(format!(
+                            "Circular dependency detected: '{}' depends on function '{}' which uses '{}'",
+                            name, variable, free_var
+                        )));
+                    }
+
+                    if visited.contains(&free_var) {
+                        return Err(EvaluationError::InvalidOperation(format!(
+                            "Circular dependency detected: '{}' -> '{}' -> '{}' -> '{}'",
+                            name, variable, free_var, name
+                        )));
+                    }
+
+                    visited.insert(free_var.clone());
+
+                    if let Some(Symbol::Variable(Variable {
+                        expression: fv_expr,
+                        ..
+                    })) = self.get_symbol(&free_var)
+                    {
+                        self.detect_cycle(name, fv_expr, visited)?;
+                    } else if let Some(Symbol::Function(FunctionDefinition {
+                        body: fv_body,
+                        params: fv_params,
+                        ..
+                    })) = self.get_symbol(&free_var)
+                    {
+                        self.detect_cycle_function(name, fv_body, visited, fv_params)?;
+                    }
+
+                    visited.remove(&free_var);
+                }
             }
+
+            visited.remove(&variable);
         }
 
         Ok(())
@@ -357,8 +394,12 @@ impl Context {
             }
 
             if visited.contains(&variable) {
-                continue;
+                return Err(EvaluationError::InvalidOperation(format!(
+                    "Circular dependency detected: '{}' depends on '{}' which depends back on '{}'",
+                    name, variable, name
+                )));
             }
+
             visited.insert(variable.clone());
 
             if let Some(Symbol::Variable(Variable {
@@ -373,8 +414,49 @@ impl Context {
                 ..
             })) = self.get_symbol(&variable)
             {
-                self.detect_cycle_function(name, body, visited, fn_params)?;
+                // Check free variables in nested function
+                let mut func_vars = Vec::new();
+                Self::collect_all_variables(body, &mut func_vars);
+
+                let free_vars: Vec<String> = func_vars
+                    .into_iter()
+                    .filter(|v| !fn_params.contains(v))
+                    .collect();
+
+                for free_var in free_vars {
+                    if free_var == name {
+                        return Err(EvaluationError::InvalidOperation(format!(
+                            "Circular dependency detected: '{}' depends on function '{}' which uses '{}'",
+                            name, variable, free_var
+                        )));
+                    }
+
+                    if visited.contains(&free_var) {
+                        continue;
+                    }
+
+                    visited.insert(free_var.clone());
+
+                    if let Some(Symbol::Variable(Variable {
+                        expression: fv_expr,
+                        ..
+                    })) = self.get_symbol(&free_var)
+                    {
+                        self.detect_cycle(name, fv_expr, visited)?;
+                    } else if let Some(Symbol::Function(FunctionDefinition {
+                        body: fv_body,
+                        params: fv_params,
+                        ..
+                    })) = self.get_symbol(&free_var)
+                    {
+                        self.detect_cycle_function(name, fv_body, visited, fv_params)?;
+                    }
+
+                    visited.remove(&free_var);
+                }
             }
+
+            visited.remove(&variable);
         }
 
         Ok(())
@@ -402,8 +484,13 @@ impl Context {
                 Self::collect_all_variables(inner, variables);
             }
             Expression::FunctionCall(fc) => {
+                // Collect variables from arguments
                 for arg in &fc.args {
                     Self::collect_all_variables(arg, variables);
+                }
+                // Also add the function name itself as a dependency
+                if !variables.contains(&fc.name) {
+                    variables.push(fc.name.clone());
                 }
             }
             Expression::Vector(v) => {
