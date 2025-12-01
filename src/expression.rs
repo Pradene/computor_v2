@@ -1177,7 +1177,11 @@ impl Expression {
             }
             previous = current_str;
 
-            current = current.expand_powers()?.distribute()?.collect_terms()?;
+            current = current
+                .expand_powers()?
+                .distribute()?
+                .collect_terms()?
+                .simplify_fraction()?;
         }
 
         Ok(current)
@@ -1521,6 +1525,246 @@ impl Expression {
         }
 
         Ok(result)
+    }
+
+    /// Try to simplify a fraction by factoring numerator and denominator
+    pub fn simplify_fraction(&self) -> Result<Expression, EvaluationError> {
+        match self {
+            Expression::Div(numerator, denominator) => {
+                // Try to simplify if both are polynomials (up to degree 2)
+                Self::try_simplify_polynomial_fraction(numerator, denominator)
+            }
+            _ => Ok(self.clone()),
+        }
+    }
+
+    fn try_simplify_polynomial_fraction(
+        numerator: &Expression,
+        denominator: &Expression,
+    ) -> Result<Expression, EvaluationError> {
+        // Extract coefficients treating 'x' as the variable
+        let num_coeffs = Self::extract_poly_coeffs(numerator, "x")?;
+        let den_coeffs = Self::extract_poly_coeffs(denominator, "x")?;
+
+        // Only handle simple cases (degree 0-2)
+        let num_degree = num_coeffs.keys().max().copied().unwrap_or(0);
+        let den_degree = den_coeffs.keys().max().copied().unwrap_or(0);
+
+        if num_degree > 2 || den_degree > 2 {
+            return Ok(Expression::Div(
+                Box::new(numerator.clone()),
+                Box::new(denominator.clone()),
+            ));
+        }
+
+        // Find roots of numerator and denominator
+        let num_roots = Self::find_polynomial_roots(&num_coeffs)?;
+        let den_roots = Self::find_polynomial_roots(&den_coeffs)?;
+
+        // Find common roots (with tolerance for floating point)
+        let common_roots = Self::find_common_roots(&num_roots, &den_roots);
+
+        if common_roots.is_empty() {
+            // No common roots, can't simplify
+            return Ok(Expression::Div(
+                Box::new(numerator.clone()),
+                Box::new(denominator.clone()),
+            ));
+        }
+
+        // Rebuild fraction without common factors
+        let simplified_num = Self::rebuild_polynomial(&num_roots, &common_roots).reduce()?;
+        let simplified_den = Self::rebuild_polynomial(&den_roots, &common_roots).reduce()?;
+
+        if simplified_den == Expression::Real(1.0) {
+            Ok(simplified_num)
+        } else {
+            Ok(Expression::Div(
+                Box::new(simplified_num),
+                Box::new(simplified_den),
+            ))
+        }
+    }
+
+    /// Extract polynomial coefficients for a given variable
+    fn extract_poly_coeffs(
+        expr: &Expression,
+        var: &str,
+    ) -> Result<HashMap<i32, f64>, EvaluationError> {
+        let mut coeffs = HashMap::new();
+        Self::collect_poly_terms(expr, var, &mut coeffs, 1.0)?;
+        Ok(coeffs)
+    }
+
+    fn collect_poly_terms(
+        expr: &Expression,
+        var: &str,
+        coeffs: &mut HashMap<i32, f64>,
+        sign: f64,
+    ) -> Result<(), EvaluationError> {
+        match expr {
+            Expression::Real(n) => {
+                coeffs
+                    .entry(0)
+                    .and_modify(|c| *c += sign * n)
+                    .or_insert(sign * n);
+            }
+            Expression::Variable(name) if name == var => {
+                coeffs.entry(1).and_modify(|c| *c += sign).or_insert(sign);
+            }
+            Expression::Paren(inner) => {
+                // Unwrap parentheses and recurse
+                Self::collect_poly_terms(inner, var, coeffs, sign)?;
+            }
+            Expression::Neg(inner) => {
+                // Handle negation
+                Self::collect_poly_terms(inner, var, coeffs, -sign)?;
+            }
+            Expression::Add(left, right) => {
+                Self::collect_poly_terms(left, var, coeffs, sign)?;
+                Self::collect_poly_terms(right, var, coeffs, sign)?;
+            }
+            Expression::Sub(left, right) => {
+                Self::collect_poly_terms(left, var, coeffs, sign)?;
+                Self::collect_poly_terms(right, var, coeffs, -sign)?;
+            }
+            Expression::Mul(left, right) => {
+                // Unwrap parentheses first
+                let left_unwrapped = match left.as_ref() {
+                    Expression::Paren(inner) => inner.as_ref(),
+                    other => other,
+                };
+                let right_unwrapped = match right.as_ref() {
+                    Expression::Paren(inner) => inner.as_ref(),
+                    other => other,
+                };
+
+                // Simple cases: const * var, var * const
+                if let (Expression::Real(c), Expression::Variable(name)) =
+                    (left_unwrapped, right_unwrapped)
+                {
+                    if name == var {
+                        coeffs
+                            .entry(1)
+                            .and_modify(|coeff| *coeff += sign * c)
+                            .or_insert(sign * c);
+                        return Ok(());
+                    }
+                }
+                if let (Expression::Variable(name), Expression::Real(c)) =
+                    (left_unwrapped, right_unwrapped)
+                {
+                    if name == var {
+                        coeffs
+                            .entry(1)
+                            .and_modify(|coeff| *coeff += sign * c)
+                            .or_insert(sign * c);
+                        return Ok(());
+                    }
+                }
+            }
+            Expression::Pow(base, exp) => {
+                let base_unwrapped = match base.as_ref() {
+                    Expression::Paren(inner) => inner.as_ref(),
+                    other => other,
+                };
+
+                if let (Expression::Variable(name), Expression::Real(e)) =
+                    (base_unwrapped, exp.as_ref())
+                {
+                    if name == var && *e == 2.0 {
+                        coeffs.entry(2).and_modify(|c| *c += sign).or_insert(sign);
+                        return Ok(());
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Find roots of a polynomial given its coefficients
+    fn find_polynomial_roots(coeffs: &HashMap<i32, f64>) -> Result<Vec<f64>, EvaluationError> {
+        let degree = coeffs.keys().max().copied().unwrap_or(0);
+
+        match degree {
+            0 => Ok(vec![]), // Constant, no roots
+            1 => {
+                let a = coeffs.get(&1).copied().unwrap_or(0.0);
+                let b = coeffs.get(&0).copied().unwrap_or(0.0);
+                if a.abs() < EPSILON {
+                    Ok(vec![])
+                } else {
+                    Ok(vec![-b / a])
+                }
+            }
+            2 => {
+                let a = coeffs.get(&2).copied().unwrap_or(0.0);
+                let b = coeffs.get(&1).copied().unwrap_or(0.0);
+                let c = coeffs.get(&0).copied().unwrap_or(0.0);
+
+                let discriminant = b * b - 4.0 * a * c;
+                if discriminant < 0.0 {
+                    Ok(vec![]) // Complex roots, skip
+                } else if discriminant.abs() < EPSILON {
+                    Ok(vec![-b / (2.0 * a)])
+                } else {
+                    let sqrt_d = discriminant.sqrt();
+                    Ok(vec![(-b + sqrt_d) / (2.0 * a), (-b - sqrt_d) / (2.0 * a)])
+                }
+            }
+            _ => Ok(vec![]), // Can't handle higher degrees
+        }
+    }
+
+    /// Find roots that appear in both lists (with tolerance)
+    fn find_common_roots(roots1: &[f64], roots2: &[f64]) -> Vec<f64> {
+        let tolerance = EPSILON;
+        let mut common = Vec::new();
+
+        for &r1 in roots1 {
+            for &r2 in roots2 {
+                if (r1 - r2).abs() < tolerance {
+                    common.push(r1);
+                    break;
+                }
+            }
+        }
+
+        common
+    }
+
+    /// Rebuild polynomial without specific roots
+    /// For roots [r1, r2], rebuild as (x - r1)(x - r2)...
+    fn rebuild_polynomial(all_roots: &[f64], roots_to_remove: &[f64]) -> Expression {
+        let mut remaining = all_roots.to_vec();
+
+        // Remove the common roots
+        for &remove in roots_to_remove {
+            if let Some(pos) = remaining.iter().position(|&r| (r - remove).abs() < EPSILON) {
+                remaining.remove(pos);
+            }
+        }
+
+        if remaining.is_empty() {
+            return Expression::Real(1.0);
+        }
+
+        // Rebuild: (x - r1)(x - r2)...
+        let mut result = Expression::Sub(
+            Box::new(Expression::Variable("x".to_string())),
+            Box::new(Expression::Real(remaining[0])),
+        );
+
+        for &root in remaining.iter().skip(1) {
+            let factor = Expression::Sub(
+                Box::new(Expression::Variable("x".to_string())),
+                Box::new(Expression::Real(root)),
+            );
+            result = Expression::Mul(Box::new(result), Box::new(factor));
+        }
+
+        result
     }
 }
 
