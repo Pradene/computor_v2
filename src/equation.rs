@@ -254,9 +254,9 @@ impl Equation {
             Expression::Neg(inner) => {
                 Self::collect_variables(inner, variables);
             }
-            Expression::FunctionCall(fc) => {
+            Expression::FunctionCall(name, args) => {
                 // Collect variables from function arguments
-                for arg in &fc.args {
+                for arg in args {
                     Self::collect_variables(arg, variables);
                 }
             }
@@ -319,7 +319,7 @@ impl Equation {
                     name
                 )));
             }
-            Expression::FunctionCall(fc) => {
+            Expression::FunctionCall(name, args) => {
                 // Check if function call contains the solving variable
                 let mut vars = Vec::new();
                 Self::collect_variables(expression, &mut vars);
@@ -327,7 +327,7 @@ impl Equation {
                 if vars.contains(&variable.to_string()) {
                     return Err(EvaluationError::UnsupportedOperation(format!(
                         "Cannot solve equations with function calls containing the variable: {}",
-                        fc.name
+                        name
                     )));
                 }
 
@@ -335,7 +335,7 @@ impl Equation {
                 // But we can't evaluate it without context, so error
                 return Err(EvaluationError::UnsupportedOperation(format!(
                     "Function call {} should have been evaluated before solving",
-                    fc.name
+                    name
                 )));
             }
             Expression::Paren(inner) => {
@@ -604,7 +604,7 @@ impl Equation {
                     )),
                 }
             }
-            Expression::FunctionCall(_) => {
+            Expression::FunctionCall(_, _) => {
                 let mut vars = Vec::new();
                 Self::collect_variables(expression, &mut vars);
 

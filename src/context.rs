@@ -483,14 +483,14 @@ impl Context {
             Expression::Neg(inner) | Expression::Paren(inner) => {
                 Self::collect_all_variables(inner, variables);
             }
-            Expression::FunctionCall(fc) => {
+            Expression::FunctionCall(name, args) => {
                 // Collect variables from arguments
-                for arg in &fc.args {
+                for arg in args {
                     Self::collect_all_variables(arg, variables);
                 }
                 // Also add the function name itself as a dependency
-                if !variables.contains(&fc.name) {
-                    variables.push(fc.name.clone());
+                if !variables.contains(&name) {
+                    variables.push(name.clone());
                 }
             }
             Expression::Vector(v) => {

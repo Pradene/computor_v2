@@ -3,7 +3,7 @@ use crate::tokenizer::{Token, TokenKind, Tokenizer};
 
 use crate::context::{FunctionDefinition, Symbol};
 use crate::error::ParseError;
-use crate::expression::{Expression, FunctionCall};
+use crate::expression::Expression;
 
 pub struct Parser;
 
@@ -357,7 +357,7 @@ impl Parser {
         }
         *pos += 1; // consume ')'
 
-        Ok(Expression::FunctionCall(FunctionCall { name, args }))
+        Ok(Expression::FunctionCall(name, args))
     }
 
     fn parse_parenthesized_expression(

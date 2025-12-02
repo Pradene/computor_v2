@@ -11,19 +11,13 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionCall {
-    pub name: String,
-    pub args: Vec<Expression>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Real(f64),
     Complex(f64, f64),
     Vector(Vec<Expression>),
     Matrix(Vec<Expression>, usize, usize),
     Variable(String),
-    FunctionCall(FunctionCall),
+    FunctionCall(String, Vec<Expression>),
     Paren(Box<Expression>),
     Neg(Box<Expression>),
     Add(Box<Expression>, Box<Expression>),
@@ -82,9 +76,9 @@ impl fmt::Display for Expression {
                 write!(f, "]")?;
             }
             Expression::Variable(name) => write!(f, "{}", name)?,
-            Expression::FunctionCall(fc) => {
-                write!(f, "{}(", fc.name)?;
-                for (i, arg) in fc.args.iter().enumerate() {
+            Expression::FunctionCall(name, args) => {
+                write!(f, "{}(", name)?;
+                for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
@@ -182,15 +176,17 @@ impl Expression {
         }
     }
 
-    pub fn contains_variable(&self, var_name: &str) -> bool {
+    pub fn contains_variable(&self, variable: &str) -> bool {
         match self {
             Expression::Real(_) | Expression::Complex(_, _) => false,
-            Expression::Variable(name) => name == var_name,
-            Expression::Vector(v) => v.iter().any(|e| e.contains_variable(var_name)),
-            Expression::Matrix(data, _, _) => data.iter().any(|e| e.contains_variable(var_name)),
-            Expression::FunctionCall(fc) => fc.args.iter().any(|e| e.contains_variable(var_name)),
-            Expression::Paren(inner) => inner.contains_variable(var_name),
-            Expression::Neg(inner) => inner.contains_variable(var_name),
+            Expression::Variable(name) => name == variable,
+            Expression::Vector(v) => v.iter().any(|e| e.contains_variable(variable)),
+            Expression::Matrix(data, _, _) => data.iter().any(|e| e.contains_variable(variable)),
+            Expression::FunctionCall(name, args) => {
+                args.iter().any(|e| e.contains_variable(variable))
+            }
+            Expression::Paren(inner) => inner.contains_variable(variable),
+            Expression::Neg(inner) => inner.contains_variable(variable),
             Expression::Add(left, right)
             | Expression::Sub(left, right)
             | Expression::Mul(left, right)
@@ -198,7 +194,7 @@ impl Expression {
             | Expression::Div(left, right)
             | Expression::Mod(left, right)
             | Expression::Pow(left, right) => {
-                left.contains_variable(var_name) || right.contains_variable(var_name)
+                left.contains_variable(variable) || right.contains_variable(variable)
             }
         }
     }
@@ -793,10 +789,10 @@ impl Expression {
                 format!("Cannot sqrt {}: incompatible type", expression),
             )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall {
-                name: "sqrt".to_string(),
-                args: vec![expression.clone()],
-            })),
+            expression => Ok(Expression::FunctionCall(
+                "sqrt".to_string(),
+                vec![expression.clone()],
+            )),
         }
     }
 
@@ -808,10 +804,10 @@ impl Expression {
                 format!("Cannot abs {}: incompatible type", expression),
             )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall {
-                name: "abs".to_string(),
-                args: vec![expression.clone()],
-            })),
+            expression => Ok(Expression::FunctionCall(
+                "abs".to_string(),
+                vec![expression.clone()],
+            )),
         }
     }
 
@@ -823,10 +819,10 @@ impl Expression {
                 format!("Cannot exp {}: incompatible type", expression),
             )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall {
-                name: "exp".to_string(),
-                args: vec![expression.clone()],
-            })),
+            expression => Ok(Expression::FunctionCall(
+                "exp".to_string(),
+                vec![expression.clone()],
+            )),
         }
     }
 
@@ -846,10 +842,10 @@ impl Expression {
                 format!("Cannot norm {}: incompatible type", expression),
             )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall {
-                name: "norm".to_string(),
-                args: vec![expression.clone()],
-            })),
+            expression => Ok(Expression::FunctionCall(
+                "norm".to_string(),
+                vec![expression.clone()],
+            )),
         }
     }
 
@@ -864,10 +860,10 @@ impl Expression {
                 format!("Cannot cos {}: incompatible type", expression),
             )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall {
-                name: "cos".to_string(),
-                args: vec![expression.clone()],
-            })),
+            expression => Ok(Expression::FunctionCall(
+                "cos".to_string(),
+                vec![expression.clone()],
+            )),
         }
     }
 
@@ -882,10 +878,10 @@ impl Expression {
                 format!("Cannot sin {}: incompatible type", expression),
             )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall {
-                name: "sin".to_string(),
-                args: vec![expression.clone()],
-            })),
+            expression => Ok(Expression::FunctionCall(
+                "sin".to_string(),
+                vec![expression.clone()],
+            )),
         }
     }
 
@@ -900,10 +896,10 @@ impl Expression {
                 format!("Cannot tan {}: incompatible type", expression),
             )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall {
-                name: "tan".to_string(),
-                args: vec![expression.clone()],
-            })),
+            expression => Ok(Expression::FunctionCall(
+                "tan".to_string(),
+                vec![expression.clone()],
+            )),
         }
     }
 
@@ -914,10 +910,10 @@ impl Expression {
                 format!("Cannot rad {}: incompatible type", expression),
             )),
 
-            expression => Ok(Expression::FunctionCall(FunctionCall {
-                name: "rad".to_string(),
-                args: vec![expression.clone()],
-            })),
+            expression => Ok(Expression::FunctionCall(
+                "rad".to_string(),
+                vec![expression.clone()],
+            )),
         }
     }
 
@@ -949,10 +945,10 @@ impl Expression {
                 )))
             }
 
-            (left, right) => Ok(Expression::FunctionCall(FunctionCall {
-                name: "dot".to_string(),
-                args: vec![left.clone(), right.clone()],
-            })),
+            (left, right) => Ok(Expression::FunctionCall(
+                "dot".to_string(),
+                vec![left.clone(), right.clone()],
+            )),
         }
     }
 
@@ -982,10 +978,10 @@ impl Expression {
                 )))
             }
 
-            (left, right) => Ok(Expression::FunctionCall(FunctionCall {
-                name: "cross".to_string(),
-                args: vec![left.clone(), right.clone()],
-            })),
+            (left, right) => Ok(Expression::FunctionCall(
+                "cross".to_string(),
+                vec![left.clone(), right.clone()],
+            )),
         }
     }
 }
@@ -1051,20 +1047,19 @@ impl Expression {
                 }
             }
 
-            Expression::FunctionCall(fc) => {
-                match context.get_symbol(fc.name.as_str()) {
+            Expression::FunctionCall(name, args) => {
+                match context.get_symbol(name.as_str()) {
                     Some(Symbol::Function(fun)) => {
-                        if fc.args.len() != fun.params.len() {
+                        if args.len() != fun.params.len() {
                             return Err(EvaluationError::WrongArgumentCount {
-                                name: fc.name.clone(),
+                                name: name.clone(),
                                 expected: fun.params.len(),
-                                got: fc.args.len(),
+                                got: args.len(),
                             });
                         }
 
                         // Evaluate arguments first
-                        let evaluated_args: Result<Vec<_>, _> = fc
-                            .args
+                        let evaluated_args: Result<Vec<_>, _> = args
                             .iter()
                             .map(|arg| arg.evaluate_internal(context, scope))
                             .collect();
@@ -1082,19 +1077,18 @@ impl Expression {
                     }
                     Some(Symbol::Variable(_)) => Err(EvaluationError::InvalidOperation(format!(
                         "'{}' is not a function",
-                        fc.name
+                        name
                     ))),
                     Some(Symbol::BuiltinFunction(function)) => {
-                        if fc.args.len() != function.arity() {
+                        if args.len() != function.arity() {
                             return Err(EvaluationError::WrongArgumentCount {
-                                name: fc.name.clone(),
+                                name: name.clone(),
                                 expected: function.arity(),
-                                got: fc.args.len(),
+                                got: args.len(),
                             });
                         }
 
-                        let evaluated_args: Vec<Expression> = fc
-                            .args
+                        let evaluated_args: Vec<Expression> = args
                             .iter()
                             .map(|e| e.evaluate_internal(context, scope))
                             .collect::<Result<_, _>>()?;
@@ -1103,16 +1097,12 @@ impl Expression {
                     }
                     None => {
                         // Evaluate arguments and keep as symbolic function call
-                        let evaluated_args: Result<Vec<_>, _> = fc
-                            .args
+                        let evaluated_args: Result<Vec<_>, _> = args
                             .iter()
                             .map(|arg| arg.evaluate_internal(context, scope))
                             .collect();
 
-                        Ok(Expression::FunctionCall(FunctionCall {
-                            name: fc.name.clone(),
-                            args: evaluated_args?,
-                        }))
+                        Ok(Expression::FunctionCall(name.clone(), evaluated_args?))
                     }
                 }
             }
@@ -1279,13 +1269,10 @@ impl Expression {
                 Ok(Expression::Matrix(expanded?, *rows, *cols))
             }
 
-            Expression::FunctionCall(fc) => {
+            Expression::FunctionCall(name, args) => {
                 let expanded_args: Result<Vec<_>, _> =
-                    fc.args.iter().map(|e| e.expand_powers()).collect();
-                Ok(Expression::FunctionCall(FunctionCall {
-                    name: fc.name.clone(),
-                    args: expanded_args?,
-                }))
+                    args.iter().map(|e| e.expand_powers()).collect();
+                Ok(Expression::FunctionCall(name.clone(), expanded_args?))
             }
 
             // Base cases: Real, Complex, Variable - no expansion needed
