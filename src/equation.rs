@@ -254,7 +254,7 @@ impl Equation {
             Expression::Neg(inner) => {
                 Self::collect_variables(inner, variables);
             }
-            Expression::FunctionCall(name, args) => {
+            Expression::FunctionCall(_, args) => {
                 // Collect variables from function arguments
                 for arg in args {
                     Self::collect_variables(arg, variables);
@@ -319,7 +319,7 @@ impl Equation {
                     name
                 )));
             }
-            Expression::FunctionCall(name, args) => {
+            Expression::FunctionCall(name, _) => {
                 // Check if function call contains the solving variable
                 let mut vars = Vec::new();
                 Self::collect_variables(expression, &mut vars);

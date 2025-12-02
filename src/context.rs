@@ -489,7 +489,7 @@ impl Context {
                     Self::collect_all_variables(arg, variables);
                 }
                 // Also add the function name itself as a dependency
-                if !variables.contains(&name) {
+                if !variables.contains(name) {
                     variables.push(name.clone());
                 }
             }

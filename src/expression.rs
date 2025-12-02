@@ -1,13 +1,14 @@
-use std::{
-    collections::HashMap,
-    fmt,
-    ops::{Add, Div, Mul, Neg, Rem, Sub},
-};
-
-use crate::{
-    constant::EPSILON,
-    context::{Context, Symbol, Variable},
-    error::EvaluationError,
+use {
+    crate::{
+        constant::EPSILON,
+        context::{Context, Symbol, Variable},
+        error::EvaluationError,
+    },
+    std::{
+        collections::HashMap,
+        fmt,
+        ops::{Add, Div, Mul, Neg, Rem, Sub},
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -182,9 +183,7 @@ impl Expression {
             Expression::Variable(name) => name == variable,
             Expression::Vector(v) => v.iter().any(|e| e.contains_variable(variable)),
             Expression::Matrix(data, _, _) => data.iter().any(|e| e.contains_variable(variable)),
-            Expression::FunctionCall(name, args) => {
-                args.iter().any(|e| e.contains_variable(variable))
-            }
+            Expression::FunctionCall(_, args) => args.iter().any(|e| e.contains_variable(variable)),
             Expression::Paren(inner) => inner.contains_variable(variable),
             Expression::Neg(inner) => inner.contains_variable(variable),
             Expression::Add(left, right)
@@ -1514,6 +1513,27 @@ impl Expression {
         Ok(result)
     }
 
+    /// Extract the first variable name found in an expression
+    fn extract_variable(expr: &Expression) -> Option<String> {
+        match expr {
+            Expression::Variable(name) => Some(name.clone()),
+            Expression::Add(left, right)
+            | Expression::Sub(left, right)
+            | Expression::Mul(left, right)
+            | Expression::Div(left, right)
+            | Expression::Mod(left, right)
+            | Expression::Pow(left, right)
+            | Expression::Hadamard(left, right) => {
+                Self::extract_variable(left).or_else(|| Self::extract_variable(right))
+            }
+            Expression::Paren(inner) | Expression::Neg(inner) => Self::extract_variable(inner),
+            Expression::Vector(v) => v.iter().find_map(Self::extract_variable),
+            Expression::Matrix(data, _, _) => data.iter().find_map(Self::extract_variable),
+            Expression::FunctionCall(_, args) => args.iter().find_map(Self::extract_variable),
+            _ => None,
+        }
+    }
+
     /// Try to simplify a fraction by factoring numerator and denominator
     pub fn simplify_fraction(&self) -> Result<Expression, EvaluationError> {
         match self {
@@ -1529,9 +1549,13 @@ impl Expression {
         numerator: &Expression,
         denominator: &Expression,
     ) -> Result<Expression, EvaluationError> {
+        let var = Self::extract_variable(numerator)
+            .or_else(|| Self::extract_variable(denominator))
+            .unwrap_or_else(|| "x".to_string());
+
         // Extract coefficients treating 'x' as the variable
-        let num_coeffs = Self::extract_poly_coeffs(numerator, "x")?;
-        let den_coeffs = Self::extract_poly_coeffs(denominator, "x")?;
+        let num_coeffs = Self::extract_poly_coeffs(numerator, &var)?;
+        let den_coeffs = Self::extract_poly_coeffs(denominator, &var)?;
 
         // Only handle simple cases (degree 0-2)
         let num_degree = num_coeffs.keys().max().copied().unwrap_or(0);
@@ -1560,8 +1584,8 @@ impl Expression {
         }
 
         // Rebuild fraction without common factors
-        let simplified_num = Self::rebuild_polynomial(&num_roots, &common_roots).reduce()?;
-        let simplified_den = Self::rebuild_polynomial(&den_roots, &common_roots).reduce()?;
+        let simplified_num = Self::rebuild_polynomial(&num_roots, &common_roots);
+        let simplified_den = Self::rebuild_polynomial(&den_roots, &common_roots);
 
         if simplified_den == Expression::Real(1.0) {
             Ok(simplified_num)
