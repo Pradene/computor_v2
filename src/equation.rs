@@ -254,6 +254,9 @@ impl Equation {
             Expression::Neg(inner) => {
                 Self::collect_variables(inner, variables);
             }
+            Expression::Paren(inner) => {
+                Self::collect_variables(inner, variables);
+            }
             Expression::FunctionCall(_, args) => {
                 // Collect variables from function arguments
                 for arg in args {

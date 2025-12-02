@@ -1553,7 +1553,6 @@ impl Expression {
             .or_else(|| Self::extract_variable(denominator))
             .unwrap_or_else(|| "x".to_string());
 
-        // Extract coefficients treating 'x' as the variable
         let num_coeffs = Self::extract_poly_coeffs(numerator, &var)?;
         let den_coeffs = Self::extract_poly_coeffs(denominator, &var)?;
 
@@ -1584,8 +1583,8 @@ impl Expression {
         }
 
         // Rebuild fraction without common factors
-        let simplified_num = Self::rebuild_polynomial(&num_roots, &common_roots);
-        let simplified_den = Self::rebuild_polynomial(&den_roots, &common_roots);
+        let simplified_num = Self::rebuild_polynomial(&num_roots, &common_roots, &var);
+        let simplified_den = Self::rebuild_polynomial(&den_roots, &common_roots, &var);
 
         if simplified_den == Expression::Real(1.0) {
             Ok(simplified_num)
@@ -1718,7 +1717,8 @@ impl Expression {
                 if discriminant < 0.0 {
                     Ok(vec![]) // Complex roots, skip
                 } else if discriminant.abs() < EPSILON {
-                    Ok(vec![-b / (2.0 * a)])
+                    let root = -b / (2.0 * a);
+                    Ok(vec![root, root])
                 } else {
                     let sqrt_d = discriminant.sqrt();
                     Ok(vec![(-b + sqrt_d) / (2.0 * a), (-b - sqrt_d) / (2.0 * a)])
@@ -1732,12 +1732,14 @@ impl Expression {
     fn find_common_roots(roots1: &[f64], roots2: &[f64]) -> Vec<f64> {
         let tolerance = EPSILON;
         let mut common = Vec::new();
+        let mut used_from_roots2 = vec![false; roots2.len()];
 
         for &r1 in roots1 {
-            for &r2 in roots2 {
-                if (r1 - r2).abs() < tolerance {
+            for (idx, &r2) in roots2.iter().enumerate() {
+                if !used_from_roots2[idx] && (r1 - r2).abs() < tolerance {
                     common.push(r1);
-                    break;
+                    used_from_roots2[idx] = true;
+                    break; // Only match this root once
                 }
             }
         }
@@ -1747,7 +1749,7 @@ impl Expression {
 
     /// Rebuild polynomial without specific roots
     /// For roots [r1, r2], rebuild as (x - r1)(x - r2)...
-    fn rebuild_polynomial(all_roots: &[f64], roots_to_remove: &[f64]) -> Expression {
+    fn rebuild_polynomial(all_roots: &[f64], roots_to_remove: &[f64], var: &str) -> Expression {
         let mut remaining = all_roots.to_vec();
 
         // Remove the common roots
@@ -1761,15 +1763,15 @@ impl Expression {
             return Expression::Real(1.0);
         }
 
-        // Rebuild: (x - r1)(x - r2)...
+        // Rebuild: (var - r1)(var - r2)...
         let mut result = Expression::Sub(
-            Box::new(Expression::Variable("x".to_string())),
+            Box::new(Expression::Variable(var.to_string())),
             Box::new(Expression::Real(remaining[0])),
         );
 
         for &root in remaining.iter().skip(1) {
             let factor = Expression::Sub(
-                Box::new(Expression::Variable("x".to_string())),
+                Box::new(Expression::Variable(var.to_string())),
                 Box::new(Expression::Real(root)),
             );
             result = Expression::Mul(Box::new(result), Box::new(factor));
