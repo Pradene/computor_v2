@@ -62,7 +62,7 @@ impl Equation {
 
     pub fn solve(&self) -> Result<EquationSolution, EvaluationError> {
         // Extract variables from the equation
-        let variables = self.extract_variables();
+        let variables = self.expression.collect_variables();
 
         if variables.is_empty() {
             // No variables - check if equation is satisfied
@@ -76,7 +76,7 @@ impl Equation {
             )));
         }
 
-        let variable = variables[0].clone();
+        let variable = variables.iter().next().unwrap().clone();
 
         // Extract polynomial coefficients
         let coefficients = self.extract_polynomial_coefficients(&variable)?;
@@ -227,47 +227,6 @@ impl Equation {
         }
     }
 
-    fn extract_variables(&self) -> Vec<String> {
-        let mut variables = Vec::new();
-        Self::collect_variables(&self.expression, &mut variables);
-        variables
-    }
-
-    fn collect_variables(expression: &Expression, variables: &mut Vec<String>) {
-        match expression {
-            Expression::Variable(name) => {
-                // Only add if not already in the list
-                if !variables.contains(name) {
-                    variables.push(name.clone());
-                }
-            }
-            Expression::Add(left, right)
-            | Expression::Sub(left, right)
-            | Expression::Mul(left, right)
-            | Expression::Hadamard(left, right)
-            | Expression::Div(left, right)
-            | Expression::Mod(left, right)
-            | Expression::Pow(left, right) => {
-                Self::collect_variables(left, variables);
-                Self::collect_variables(right, variables);
-            }
-            Expression::Neg(inner) => {
-                Self::collect_variables(inner, variables);
-            }
-            Expression::Paren(inner) => {
-                Self::collect_variables(inner, variables);
-            }
-            Expression::FunctionCall(_, args) => {
-                // Collect variables from function arguments
-                for arg in args {
-                    Self::collect_variables(arg, variables);
-                }
-            }
-            // Don't collect anything from Real, Complex, or other literal types
-            _ => {}
-        }
-    }
-
     fn extract_polynomial_coefficients(
         &self,
         variable: &str,
@@ -324,8 +283,7 @@ impl Equation {
             }
             Expression::FunctionCall(name, _) => {
                 // Check if function call contains the solving variable
-                let mut vars = Vec::new();
-                Self::collect_variables(expression, &mut vars);
+                let vars = expression.collect_variables();
 
                 if vars.contains(&variable.to_string()) {
                     return Err(EvaluationError::UnsupportedOperation(format!(
@@ -608,8 +566,7 @@ impl Equation {
                 }
             }
             Expression::FunctionCall(_, _) => {
-                let mut vars = Vec::new();
-                Self::collect_variables(expression, &mut vars);
+                let vars = expression.collect_variables();
 
                 if vars.contains(&variable.to_string()) {
                     Err(EvaluationError::UnsupportedOperation(

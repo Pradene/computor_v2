@@ -47,4 +47,42 @@ impl Expression {
             }
         }
     }
+
+    pub fn collect_variables(&self) -> Vec<String> {
+        let mut variables = Vec::new();
+        match self {
+            Expression::Variable(name) => {
+                variables.push(name.clone());
+            }
+            Expression::Add(left, right)
+            | Expression::Sub(left, right)
+            | Expression::Mul(left, right)
+            | Expression::Hadamard(left, right)
+            | Expression::Div(left, right)
+            | Expression::Mod(left, right)
+            | Expression::Pow(left, right) => {
+                let var_left = left.collect_variables();
+                let var_right = right.collect_variables();
+
+                variables.extend(var_left);
+                variables.extend(var_right);
+            }
+            Expression::Neg(inner) => {
+                variables.extend(inner.collect_variables());
+            }
+            Expression::Paren(inner) => {
+                variables.extend(inner.collect_variables());
+            }
+            Expression::FunctionCall(_, args) => {
+                // Collect variables from function arguments
+                for arg in args {
+                    variables.extend(arg.collect_variables());
+                }
+            }
+            // Don't collect anything from Real, Complex, or other literal types
+            _ => {}
+        };
+
+        variables
+    }
 }

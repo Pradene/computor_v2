@@ -539,45 +539,25 @@ impl Expression {
         Ok(result)
     }
 
-    /// Extract the first variable name found in an expression
-    fn extract_variable(expr: &Expression) -> Option<String> {
-        match expr {
-            Expression::Variable(name) => Some(name.clone()),
-            Expression::Add(left, right)
-            | Expression::Sub(left, right)
-            | Expression::Mul(left, right)
-            | Expression::Div(left, right)
-            | Expression::Mod(left, right)
-            | Expression::Pow(left, right)
-            | Expression::Hadamard(left, right) => {
-                Self::extract_variable(left).or_else(|| Self::extract_variable(right))
-            }
-            Expression::Paren(inner) | Expression::Neg(inner) => Self::extract_variable(inner),
-            Expression::Vector(v) => v.iter().find_map(Self::extract_variable),
-            Expression::Matrix(data, _, _) => data.iter().find_map(Self::extract_variable),
-            Expression::FunctionCall(_, args) => args.iter().find_map(Self::extract_variable),
-            _ => None,
-        }
-    }
-
-    /// Try to simplify a fraction by factoring numerator and denominator
     pub fn simplify_fraction(&self) -> Result<Expression, EvaluationError> {
-        match self {
-            Expression::Div(numerator, denominator) => {
-                // Try to simplify if both are polynomials (up to degree 2)
-                Self::try_simplify_polynomial_fraction(numerator, denominator)
-            }
-            _ => Ok(self.clone()),
-        }
-    }
+        let Expression::Div(numerator, denominator) = self else {
+            return Ok(self.clone());
+        };
 
-    fn try_simplify_polynomial_fraction(
-        numerator: &Expression,
-        denominator: &Expression,
-    ) -> Result<Expression, EvaluationError> {
-        let var = Self::extract_variable(numerator)
-            .or_else(|| Self::extract_variable(denominator))
-            .unwrap_or_else(|| "x".to_string());
+        let var_num = numerator.collect_variables();
+        let var_den = denominator.collect_variables();
+
+        let mut variables = vec![];
+        variables.extend(var_num);
+        variables.extend(var_den);
+        variables.sort();
+        variables.dedup();
+
+        if variables.len() != 1 {
+            return Ok(self.clone());
+        }
+
+        let var = variables.first().unwrap().clone();
 
         let num_coeffs = Self::extract_poly_coeffs(numerator, &var)?;
         let den_coeffs = Self::extract_poly_coeffs(denominator, &var)?;
@@ -587,10 +567,7 @@ impl Expression {
         let den_degree = den_coeffs.keys().max().copied().unwrap_or(0);
 
         if num_degree > 2 || den_degree > 2 {
-            return Ok(Expression::Div(
-                Box::new(numerator.clone()),
-                Box::new(denominator.clone()),
-            ));
+            return Ok(self.clone());
         }
 
         // Find roots of numerator and denominator
@@ -602,10 +579,7 @@ impl Expression {
 
         if common_roots.is_empty() {
             // No common roots, can't simplify
-            return Ok(Expression::Div(
-                Box::new(numerator.clone()),
-                Box::new(denominator.clone()),
-            ));
+            return Ok(self.clone());
         }
 
         // Rebuild fraction without common factors

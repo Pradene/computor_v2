@@ -204,6 +204,8 @@ impl Context {
                 Ok(StatementResult::Value(result))
             }
             Statement::Equation { left, right } => {
+                let left = left.reduce()?;
+                let right = right.reduce()?;
                 let result = self.evaluate_equation(&left, &right)?;
                 Ok(StatementResult::Solution(result))
             }
