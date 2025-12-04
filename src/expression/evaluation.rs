@@ -6,7 +6,7 @@ use {
         expression::Expression,
     },
     std::{
-        collections::HashMap,
+        collections::{HashMap, HashSet},
         ops::{Add, Div, Mul, Neg, Rem, Sub},
     },
 };
@@ -547,20 +547,16 @@ impl Expression {
         let var_num = numerator.collect_variables();
         let var_den = denominator.collect_variables();
 
-        let mut variables = vec![];
-        variables.extend(var_num);
-        variables.extend(var_den);
-        variables.sort();
-        variables.dedup();
+        let variables: HashSet<String> = var_num.union(&var_den).cloned().collect();
 
         if variables.len() != 1 {
             return Ok(self.clone());
         }
 
-        let var = variables.first().unwrap().clone();
+        let var = variables.iter().next().unwrap().clone();
 
-        let num_coeffs = Self::extract_poly_coeffs(numerator, &var)?;
-        let den_coeffs = Self::extract_poly_coeffs(denominator, &var)?;
+        let num_coeffs = Self::extract_polynomial_coeffs(numerator, &var)?;
+        let den_coeffs = Self::extract_polynomial_coeffs(denominator, &var)?;
 
         // Only handle simple cases (degree 0-2)
         let num_degree = num_coeffs.keys().max().copied().unwrap_or(0);
@@ -597,16 +593,16 @@ impl Expression {
     }
 
     /// Extract polynomial coefficients for a given variable
-    fn extract_poly_coeffs(
+    fn extract_polynomial_coeffs(
         expr: &Expression,
         var: &str,
     ) -> Result<HashMap<i32, f64>, EvaluationError> {
         let mut coeffs = HashMap::new();
-        Self::collect_poly_terms(expr, var, &mut coeffs, 1.0)?;
+        Self::collect_polynomial_terms(expr, var, &mut coeffs, 1.0)?;
         Ok(coeffs)
     }
 
-    fn collect_poly_terms(
+    fn collect_polynomial_terms(
         expr: &Expression,
         var: &str,
         coeffs: &mut HashMap<i32, f64>,
@@ -624,19 +620,19 @@ impl Expression {
             }
             Expression::Paren(inner) => {
                 // Unwrap parentheses and recurse
-                Self::collect_poly_terms(inner, var, coeffs, sign)?;
+                Self::collect_polynomial_terms(inner, var, coeffs, sign)?;
             }
             Expression::Neg(inner) => {
                 // Handle negation
-                Self::collect_poly_terms(inner, var, coeffs, -sign)?;
+                Self::collect_polynomial_terms(inner, var, coeffs, -sign)?;
             }
             Expression::Add(left, right) => {
-                Self::collect_poly_terms(left, var, coeffs, sign)?;
-                Self::collect_poly_terms(right, var, coeffs, sign)?;
+                Self::collect_polynomial_terms(left, var, coeffs, sign)?;
+                Self::collect_polynomial_terms(right, var, coeffs, sign)?;
             }
             Expression::Sub(left, right) => {
-                Self::collect_poly_terms(left, var, coeffs, sign)?;
-                Self::collect_poly_terms(right, var, coeffs, -sign)?;
+                Self::collect_polynomial_terms(left, var, coeffs, sign)?;
+                Self::collect_polynomial_terms(right, var, coeffs, -sign)?;
             }
             Expression::Mul(left, right) => {
                 // Unwrap parentheses first

@@ -3,6 +3,67 @@ use {
     std::ops::{Add, Mul, Sub},
 };
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum BuiltinFunction {
+    Rad,
+    Norm,
+    Abs,
+    Sqrt,
+    Cos,
+    Sin,
+    Tan,
+    Dot,
+    Cross,
+    Exp,
+}
+
+impl BuiltinFunction {
+    pub fn name(&self) -> &str {
+        match self {
+            BuiltinFunction::Rad => "rad",
+            BuiltinFunction::Norm => "norm",
+            BuiltinFunction::Abs => "abs",
+            BuiltinFunction::Sqrt => "sqrt",
+            BuiltinFunction::Cos => "cos",
+            BuiltinFunction::Sin => "sin",
+            BuiltinFunction::Tan => "tan",
+            BuiltinFunction::Dot => "dot",
+            BuiltinFunction::Cross => "cross",
+            BuiltinFunction::Exp => "exp",
+        }
+    }
+
+    pub fn arity(&self) -> usize {
+        match self {
+            BuiltinFunction::Rad => 1,
+            BuiltinFunction::Norm => 1,
+            BuiltinFunction::Abs => 1,
+            BuiltinFunction::Sqrt => 1,
+            BuiltinFunction::Cos => 1,
+            BuiltinFunction::Sin => 1,
+            BuiltinFunction::Tan => 1,
+            BuiltinFunction::Dot => 2,
+            BuiltinFunction::Cross => 2,
+            BuiltinFunction::Exp => 1,
+        }
+    }
+
+    pub fn call(&self, args: &[Expression]) -> Result<Expression, EvaluationError> {
+        match self {
+            BuiltinFunction::Rad => args[0].rad(),
+            BuiltinFunction::Norm => args[0].norm(),
+            BuiltinFunction::Abs => args[0].abs(),
+            BuiltinFunction::Sqrt => args[0].sqrt(),
+            BuiltinFunction::Cos => args[0].cos(),
+            BuiltinFunction::Sin => args[0].sin(),
+            BuiltinFunction::Tan => args[0].tan(),
+            BuiltinFunction::Dot => args[0].dot(args[1].clone()),
+            BuiltinFunction::Cross => args[0].cross(args[1].clone()),
+            BuiltinFunction::Exp => args[0].exp(),
+        }
+    }
+}
+
 impl Expression {
     pub fn sqrt(&self) -> Result<Expression, EvaluationError> {
         match self {

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{constant::EPSILON, expression::Expression};
 
 impl Expression {
@@ -48,11 +50,12 @@ impl Expression {
         }
     }
 
-    pub fn collect_variables(&self) -> Vec<String> {
-        let mut variables = Vec::new();
+    pub fn collect_variables(&self) -> HashSet<String> {
+        let mut variables = HashSet::new();
+
         match self {
             Expression::Variable(name) => {
-                variables.push(name.clone());
+                variables.insert(name.clone());
             }
             Expression::Add(left, right)
             | Expression::Sub(left, right)

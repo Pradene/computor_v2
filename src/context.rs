@@ -1,11 +1,13 @@
-use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::ops::Sub;
-
-use crate::equation::{Equation, EquationSolution};
-use crate::error::{ComputorError, EvaluationError};
-use crate::expression::Expression;
-use crate::parser::Parser;
+use {
+    crate::error::{ComputorError, EvaluationError},
+    crate::expression::builtin::BuiltinFunction,
+    crate::expression::equation::EquationSolution,
+    crate::expression::Expression,
+    crate::parser::Parser,
+    std::collections::{HashMap, HashSet},
+    std::fmt,
+    std::ops::Sub,
+};
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -25,67 +27,6 @@ impl fmt::Display for StatementResult {
         match self {
             StatementResult::Value(value) => write!(f, "{}", value),
             StatementResult::Solution(solution) => write!(f, "{}", solution),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum BuiltinFunction {
-    Rad,
-    Norm,
-    Abs,
-    Sqrt,
-    Cos,
-    Sin,
-    Tan,
-    Dot,
-    Cross,
-    Exp,
-}
-
-impl BuiltinFunction {
-    pub fn name(&self) -> &str {
-        match self {
-            BuiltinFunction::Rad => "rad",
-            BuiltinFunction::Norm => "norm",
-            BuiltinFunction::Abs => "abs",
-            BuiltinFunction::Sqrt => "sqrt",
-            BuiltinFunction::Cos => "cos",
-            BuiltinFunction::Sin => "sin",
-            BuiltinFunction::Tan => "tan",
-            BuiltinFunction::Dot => "dot",
-            BuiltinFunction::Cross => "cross",
-            BuiltinFunction::Exp => "exp",
-        }
-    }
-
-    pub fn arity(&self) -> usize {
-        match self {
-            BuiltinFunction::Rad => 1,
-            BuiltinFunction::Norm => 1,
-            BuiltinFunction::Abs => 1,
-            BuiltinFunction::Sqrt => 1,
-            BuiltinFunction::Cos => 1,
-            BuiltinFunction::Sin => 1,
-            BuiltinFunction::Tan => 1,
-            BuiltinFunction::Dot => 2,
-            BuiltinFunction::Cross => 2,
-            BuiltinFunction::Exp => 1,
-        }
-    }
-
-    pub fn call(&self, args: &[Expression]) -> Result<Expression, EvaluationError> {
-        match self {
-            BuiltinFunction::Rad => args[0].rad(),
-            BuiltinFunction::Norm => args[0].norm(),
-            BuiltinFunction::Abs => args[0].abs(),
-            BuiltinFunction::Sqrt => args[0].sqrt(),
-            BuiltinFunction::Cos => args[0].cos(),
-            BuiltinFunction::Sin => args[0].sin(),
-            BuiltinFunction::Tan => args[0].tan(),
-            BuiltinFunction::Dot => args[0].dot(args[1].clone()),
-            BuiltinFunction::Cross => args[0].cross(args[1].clone()),
-            BuiltinFunction::Exp => args[0].exp(),
         }
     }
 }
@@ -137,6 +78,32 @@ impl Default for Context {
     }
 }
 
+impl fmt::Display for Context {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (_, value) in self.table.iter() {
+            match value {
+                Symbol::Variable(Variable { name, expression }) => {
+                    writeln!(f, "{} = {}", name, expression)?;
+                }
+                Symbol::Function(FunctionDefinition { name, params, body }) => {
+                    write!(f, "{}", name)?;
+                    write!(f, "(")?;
+                    for (i, param) in params.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", param)?;
+                    }
+                    writeln!(f, ") = {}", body)?;
+                }
+                Symbol::BuiltinFunction(_) => {}
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl Context {
     pub fn new() -> Self {
         const BUILTINS: &[BuiltinFunction] = &[
@@ -169,28 +136,6 @@ impl Context {
 
     pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
         self.table.get(name.to_ascii_lowercase().as_str())
-    }
-
-    pub fn print_table(&self) {
-        for (_, value) in self.table.iter() {
-            match value {
-                Symbol::Variable(Variable { name, expression }) => {
-                    println!("{} = {}", name, expression)
-                }
-                Symbol::Function(FunctionDefinition { name, params, body }) => {
-                    print!("{}", name);
-                    print!("(");
-                    for (i, param) in params.iter().enumerate() {
-                        if i > 0 {
-                            print!(", ");
-                        }
-                        print!("{}", param);
-                    }
-                    println!(") = {}", body);
-                }
-                Symbol::BuiltinFunction(_) => {}
-            }
-        }
     }
 
     pub fn execute(&mut self, statement: Statement) -> Result<StatementResult, EvaluationError> {
@@ -227,18 +172,13 @@ impl Context {
         let expression = (left.clone()).sub(right.clone())?;
         let expression = self.evaluate_expression(&expression)?;
 
-        let equation = Equation::new(expression);
-        equation.solve()
-    }
-
-    fn is_builtin(&self, name: &str) -> bool {
-        matches!(self.table.get(name), Some(Symbol::BuiltinFunction(_)))
+        expression.find_roots()
     }
 
     pub fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {
         let name = name.to_ascii_lowercase();
 
-        if self.is_builtin(&name) {
+        if matches!(self.table.get(&name), Some(Symbol::BuiltinFunction(_))) {
             return Err(EvaluationError::CannotOverrideBuiltin(name));
         }
 
@@ -270,7 +210,7 @@ impl Context {
 
         match symbol {
             Symbol::Variable(Variable { expression, .. }) => {
-                self.detect_cycle(name, expression, &mut visited)
+                self.detect_cycle_variable(name, expression, &mut visited)
             }
             Symbol::Function(FunctionDefinition { body, params, .. }) => {
                 self.detect_cycle_function(name, body, &mut visited, params)
@@ -280,14 +220,13 @@ impl Context {
     }
 
     /// Recursively check if assigning `name` to `expression` creates a cycle
-    fn detect_cycle(
+    fn detect_cycle_variable(
         &self,
         name: &str,
         expression: &Expression,
         visited: &mut HashSet<String>,
     ) -> Result<(), EvaluationError> {
-        let mut variables = Vec::new();
-        Self::collect_all_variables(expression, &mut variables);
+        let variables = expression.collect_variables();
 
         for variable in variables {
             if variable == name {
@@ -313,14 +252,13 @@ impl Context {
                 ..
             })) = self.get_symbol(&variable)
             {
-                self.detect_cycle(name, var_expr, visited)?;
+                self.detect_cycle_variable(name, var_expr, visited)?;
             } else if let Some(Symbol::Function(FunctionDefinition { body, params, .. })) =
                 self.get_symbol(&variable)
             {
                 // For functions, we need to check the free variables in the body
                 // (excluding parameters which are bound)
-                let mut func_vars = Vec::new();
-                Self::collect_all_variables(body, &mut func_vars);
+                let func_vars = body.collect_variables();
 
                 // Filter out parameters (they're local bindings)
                 let free_vars: Vec<String> = func_vars
@@ -351,7 +289,7 @@ impl Context {
                         ..
                     })) = self.get_symbol(&free_var)
                     {
-                        self.detect_cycle(name, fv_expr, visited)?;
+                        self.detect_cycle_variable(name, fv_expr, visited)?;
                     } else if let Some(Symbol::Function(FunctionDefinition {
                         body: fv_body,
                         params: fv_params,
@@ -379,8 +317,7 @@ impl Context {
         visited: &mut HashSet<String>,
         params: &[String],
     ) -> Result<(), EvaluationError> {
-        let mut variables = Vec::new();
-        Self::collect_all_variables(expression, &mut variables);
+        let variables = expression.collect_variables();
 
         for variable in variables {
             // Skip function parameters - they're local, not free variables
@@ -409,7 +346,7 @@ impl Context {
                 ..
             })) = self.get_symbol(&variable)
             {
-                self.detect_cycle(name, var_expr, visited)?;
+                self.detect_cycle_variable(name, var_expr, visited)?;
             } else if let Some(Symbol::Function(FunctionDefinition {
                 body,
                 params: fn_params,
@@ -417,8 +354,7 @@ impl Context {
             })) = self.get_symbol(&variable)
             {
                 // Check free variables in nested function
-                let mut func_vars = Vec::new();
-                Self::collect_all_variables(body, &mut func_vars);
+                let func_vars = body.collect_variables();
 
                 let free_vars: Vec<String> = func_vars
                     .into_iter()
@@ -444,7 +380,7 @@ impl Context {
                         ..
                     })) = self.get_symbol(&free_var)
                     {
-                        self.detect_cycle(name, fv_expr, visited)?;
+                        self.detect_cycle_variable(name, fv_expr, visited)?;
                     } else if let Some(Symbol::Function(FunctionDefinition {
                         body: fv_body,
                         params: fv_params,
@@ -462,51 +398,6 @@ impl Context {
         }
 
         Ok(())
-    }
-
-    /// Collect all variables referenced in an expression (transitive)
-    fn collect_all_variables(expression: &Expression, variables: &mut Vec<String>) {
-        match expression {
-            Expression::Variable(name) => {
-                if !variables.contains(name) {
-                    variables.push(name.clone());
-                }
-            }
-            Expression::Add(left, right)
-            | Expression::Sub(left, right)
-            | Expression::Mul(left, right)
-            | Expression::Hadamard(left, right)
-            | Expression::Div(left, right)
-            | Expression::Mod(left, right)
-            | Expression::Pow(left, right) => {
-                Self::collect_all_variables(left, variables);
-                Self::collect_all_variables(right, variables);
-            }
-            Expression::Neg(inner) | Expression::Paren(inner) => {
-                Self::collect_all_variables(inner, variables);
-            }
-            Expression::FunctionCall(name, args) => {
-                // Collect variables from arguments
-                for arg in args {
-                    Self::collect_all_variables(arg, variables);
-                }
-                // Also add the function name itself as a dependency
-                if !variables.contains(name) {
-                    variables.push(name.clone());
-                }
-            }
-            Expression::Vector(v) => {
-                for elem in v {
-                    Self::collect_all_variables(elem, variables);
-                }
-            }
-            Expression::Matrix(data, _, _) => {
-                for elem in data {
-                    Self::collect_all_variables(elem, variables);
-                }
-            }
-            _ => {}
-        }
     }
 
     pub fn unset(&mut self, name: &str) -> Option<Symbol> {

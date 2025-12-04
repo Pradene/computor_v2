@@ -22,7 +22,7 @@ fn main() -> RustylineResult<()> {
                 } else if line == "quit" {
                     break;
                 } else if line == "table" {
-                    context.print_table();
+                    print!("{}", context);
                 } else if line == "clear" {
                     Command::new("clear").status().unwrap();
                 } else if line.starts_with("unset") {
