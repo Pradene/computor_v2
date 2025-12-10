@@ -29,7 +29,7 @@ impl fmt::Display for EquationSolution {
             EquationSolution::Infinite => write!(f, "Infinite solution (equality)")?,
             EquationSolution::Finite(roots) => {
                 for (index, root) in roots.iter().enumerate() {
-                    write!(f, "{}{}", if index == 0 { "" } else { "\n" }, root)?;
+                    write!(f, "{}{}", if index == 0 { "" } else { ", " }, root)?;
                 }
             }
         }
