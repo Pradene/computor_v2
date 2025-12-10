@@ -1,7 +1,6 @@
 use {
     crate::error::{ComputorError, EvaluationError},
     crate::expression::builtin::BuiltinFunction,
-    crate::expression::equation::EquationSolution,
     crate::expression::Expression,
     crate::parser::Parser,
     std::collections::{HashMap, HashSet},
@@ -14,6 +13,29 @@ pub enum Statement {
     Assignment { name: String, value: Symbol },
     Equation { left: Expression, right: Expression },
     Query { expression: Expression },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum EquationSolution {
+    NoSolution,
+    Infinite,
+    Finite(Vec<Expression>),
+}
+
+impl fmt::Display for EquationSolution {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EquationSolution::NoSolution => write!(f, "No solution")?,
+            EquationSolution::Infinite => write!(f, "Infinite solution (equality)")?,
+            EquationSolution::Finite(roots) => {
+                for (index, root) in roots.iter().enumerate() {
+                    write!(f, "{}{}", if index == 0 { "" } else { "\n" }, root)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -149,8 +171,6 @@ impl Context {
                 Ok(StatementResult::Value(result))
             }
             Statement::Equation { left, right } => {
-                let left = left.reduce()?;
-                let right = right.reduce()?;
                 let result = self.evaluate_equation(&left, &right)?;
                 Ok(StatementResult::Solution(result))
             }
@@ -169,10 +189,21 @@ impl Context {
         left: &Expression,
         right: &Expression,
     ) -> Result<EquationSolution, EvaluationError> {
-        let expression = (left.clone()).sub(right.clone())?;
-        let expression = self.evaluate_expression(&expression)?;
+        let left = left.reduce()?;
+        let right = right.reduce()?;
+        let expression = self.evaluate_expression(&left.sub(right)?)?;
 
-        expression.find_roots()
+        if expression.is_zero() {
+            return Ok(EquationSolution::Infinite);
+        }
+
+        let roots = expression.find_roots()?;
+        match roots.len() {
+            0 => Ok(EquationSolution::NoSolution),
+            1 => Ok(EquationSolution::Finite(roots)),
+            2 => Ok(EquationSolution::Finite(roots)),
+            _ => unreachable!(),
+        }
     }
 
     pub fn assign(&mut self, name: String, symbol: Symbol) -> Result<Expression, EvaluationError> {

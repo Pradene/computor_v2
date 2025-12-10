@@ -1,52 +1,15 @@
 use {
     crate::{constant::EPSILON, error::EvaluationError, expression::Expression},
     std::collections::HashMap,
-    std::fmt,
     std::ops::{Add, Mul, Neg},
 };
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum EquationSolution {
-    NoSolution,
-    Infinite,
-    Finite {
-        variable: String,
-        solutions: Vec<Expression>,
-    },
-}
-
-impl fmt::Display for EquationSolution {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            EquationSolution::NoSolution => write!(f, "No solution")?,
-            EquationSolution::Infinite => write!(f, "Infinite solutions (identity)")?,
-            EquationSolution::Finite {
-                variable,
-                solutions,
-            } => {
-                if solutions.is_empty() {
-                    write!(f, "No solution")?;
-                } else if solutions.len() == 1 {
-                    write!(f, "{} = {}", variable, solutions[0])?;
-                } else {
-                    write!(
-                        f,
-                        "{} = {}\n{} = {}",
-                        variable, solutions[0], variable, solutions[1]
-                    )?;
-                }
-            }
-        };
-        Ok(())
-    }
-}
-
 impl Expression {
-    pub fn find_roots(&self) -> Result<EquationSolution, EvaluationError> {
+    pub fn find_roots(&self) -> Result<Vec<Expression>, EvaluationError> {
         let variables = self.collect_variables();
 
         if variables.is_empty() {
-            return Ok(self.solve_constant());
+            return self.solve_degree_0();
         }
 
         if variables.len() > 1 {
@@ -87,9 +50,9 @@ impl Expression {
         }
 
         match degree {
-            0 => self.solve_degree_0(&coefficients),
-            1 => self.solve_degree_1(&variable, &coefficients),
-            2 => self.solve_degree_2(&variable, &coefficients),
+            0 => self.solve_degree_0(),
+            1 => self.solve_degree_1(&coefficients),
+            2 => self.solve_degree_2(&coefficients),
             _ => Err(EvaluationError::UnsupportedOperation(format!(
                 "Cannot solve polynomial equations of degree {}",
                 degree
@@ -97,62 +60,35 @@ impl Expression {
         }
     }
 
-    fn solve_constant(&self) -> EquationSolution {
-        let is_zero = match self {
-            Expression::Real(n) => n.abs() < EPSILON,
-            Expression::Complex(r, i) => r.abs() < EPSILON && i.abs() < EPSILON,
-            _ => false,
-        };
-
-        if is_zero {
-            EquationSolution::Infinite
-        } else {
-            EquationSolution::NoSolution
-        }
-    }
-
-    fn solve_degree_0(
-        &self,
-        coefficients: &HashMap<i32, f64>,
-    ) -> Result<EquationSolution, EvaluationError> {
-        let c = coefficients.get(&0).copied().unwrap_or(0.0);
-        Ok(if c.abs() < EPSILON {
-            EquationSolution::Infinite
-        } else {
-            EquationSolution::NoSolution
-        })
+    fn solve_degree_0(&self) -> Result<Vec<Expression>, EvaluationError> {
+        Ok(vec![])
     }
 
     fn solve_degree_1(
         &self,
-        variable: &str,
         coefficients: &HashMap<i32, f64>,
-    ) -> Result<EquationSolution, EvaluationError> {
+    ) -> Result<Vec<Expression>, EvaluationError> {
         let a = coefficients.get(&1).copied().unwrap_or(0.0);
         let b = coefficients.get(&0).copied().unwrap_or(0.0);
 
         if a.abs() < EPSILON {
-            return self.solve_degree_0(coefficients);
+            return self.solve_degree_0();
         }
 
         let solution = -b / a;
-        Ok(EquationSolution::Finite {
-            variable: variable.to_string(),
-            solutions: vec![Expression::Real(solution)],
-        })
+        Ok(vec![Expression::Real(solution)])
     }
 
     fn solve_degree_2(
         &self,
-        variable: &str,
         coefficients: &HashMap<i32, f64>,
-    ) -> Result<EquationSolution, EvaluationError> {
+    ) -> Result<Vec<Expression>, EvaluationError> {
         let a = coefficients.get(&2).copied().unwrap_or(0.0);
         let b = coefficients.get(&1).copied().unwrap_or(0.0);
         let c = coefficients.get(&0).copied().unwrap_or(0.0);
 
         if a.abs() < EPSILON {
-            return self.solve_degree_1(variable, coefficients);
+            return self.solve_degree_1(coefficients);
         }
 
         let discriminant = b * b - 4.0 * a * c;
@@ -165,18 +101,12 @@ impl Expression {
             let x1 = if x1.abs() < EPSILON { 0.0 } else { x1 };
             let x2 = if x2.abs() < EPSILON { 0.0 } else { x2 };
 
-            EquationSolution::Finite {
-                variable: variable.to_string(),
-                solutions: vec![Expression::Real(x1), Expression::Real(x2)],
-            }
+            vec![Expression::Real(x1), Expression::Real(x2)]
         } else if discriminant.abs() < EPSILON {
             let x = -b / (2.0 * a);
             let x = if x.abs() < EPSILON { 0.0 } else { x };
 
-            EquationSolution::Finite {
-                variable: variable.to_string(),
-                solutions: vec![Expression::Real(x)],
-            }
+            vec![Expression::Real(x), Expression::Real(x)]
         } else {
             let real = -b / (2.0 * a);
             let imag = (-discriminant).sqrt() / (2.0 * a);
@@ -184,13 +114,10 @@ impl Expression {
             let real = if real.abs() < EPSILON { 0.0 } else { real };
             let imag = if imag.abs() < EPSILON { 0.0 } else { imag };
 
-            EquationSolution::Finite {
-                variable: variable.to_string(),
-                solutions: vec![
-                    Expression::Complex(real, imag),
-                    Expression::Complex(real, -imag),
-                ],
-            }
+            vec![
+                Expression::Complex(real, imag),
+                Expression::Complex(real, -imag),
+            ]
         })
     }
 
