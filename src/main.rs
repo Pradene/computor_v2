@@ -1,7 +1,11 @@
-use rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult};
-use std::process::Command;
-
-use computor_v2::context::Context;
+use {
+    computor_v2::{
+        computor::{Computor, Statement},
+        parser::Parser,
+    },
+    rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult},
+    std::process::Command,
+};
 
 fn main() -> RustylineResult<()> {
     let config = Config::builder().history_ignore_dups(true)?.build();
@@ -10,7 +14,7 @@ fn main() -> RustylineResult<()> {
     let history_file = "history.txt";
     let _ = reader.load_history(history_file);
 
-    let mut context = Context::new();
+    let mut computor = Computor::new();
 
     loop {
         match reader.readline("> ") {
@@ -19,29 +23,50 @@ fn main() -> RustylineResult<()> {
 
                 if line.is_empty() {
                     continue;
-                } else if line == "quit" {
-                    break;
-                } else if line == "table" {
-                    print!("{}", context);
-                } else if line == "clear" {
-                    Command::new("clear").status().unwrap();
-                } else if line.starts_with("unset") {
-                    let words: Vec<&str> = line.split_whitespace().collect();
-
-                    if words.len() != 2 {
-                        eprintln!("Usage: unset <name>");
-                    } else {
-                        match context.unset(words[1]) {
-                            Some(symbol) => println!("'{}' unset", symbol),
-                            None => eprintln!("Error: '{}' not found", words[1]),
-                        }
-                    }
-                } else {
-                    match context.compute(line) {
-                        Ok(result) => println!("{}", result),
-                        Err(e) => eprintln!("{}", e),
-                    }
                 }
+
+                let statement = match Parser::parse(line) {
+                    Ok(stmt) => stmt,
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        continue;
+                    }
+                };
+
+                match statement {
+                    Statement::Assignment { name, value } => {
+                        match computor.assign(name, value) {
+                            Ok(expression) => println!("{}", expression),
+                            Err(error) => eprintln!("{}", error),
+                        };
+                    }
+                    Statement::Query { expression } => {
+                        match computor.evaluate_expression(&expression) {
+                            Ok(expression) => println!("{}", expression),
+                            Err(error) => eprintln!("{}", error),
+                        };
+                    }
+                    Statement::Equation { left, right } => {
+                        match computor.evaluate_equation(&left, &right) {
+                            Ok(solution) => println!("{}", solution),
+                            Err(error) => eprintln!("{}", error),
+                        };
+                    }
+                    Statement::Command { name, args } => match name.as_str() {
+                        "quit" => break,
+                        "table" => print!("{}", computor),
+                        "clear" => {
+                            Command::new("clear").status().unwrap();
+                        }
+                        "unset" => {
+                            if let Some(symbol) = computor.unset(args[0].as_str()) {
+                                println!("'{}' unset", symbol);
+                            }
+                        }
+                        _ => eprintln!("Not a valid command"),
+                    },
+                };
+
                 reader.add_history_entry(line)?;
             }
             Err(ReadlineError::Interrupted) => {

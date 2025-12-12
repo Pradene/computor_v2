@@ -1,13 +1,16 @@
-use crate::context::{Statement, Variable};
+use crate::computor::{Statement, Variable};
 use crate::tokenizer::{Token, TokenKind, Tokenizer};
 
-use crate::context::{FunctionDefinition, Symbol};
+use crate::computor::{FunctionDefinition, Symbol};
 use crate::error::ParseError;
 use crate::expression::Expression;
 
 pub struct Parser;
 
 impl Parser {
+    const COMMANDS: &'static [(&'static str, usize)] =
+        &[("quit", 0), ("clear", 0), ("table", 0), ("unset", 1)];
+
     pub fn parse(line: &str) -> Result<Statement, ParseError> {
         let tokens = Tokenizer::tokenize(line)?;
 
@@ -49,10 +52,40 @@ impl Parser {
                 Self::parse_assignment(left_tokens, right_tokens)
             }
         } else {
-            Err(ParseError::InvalidSyntax(
-                "No assignment operator found: expected format 'x = value' or 'x = y?'".to_string(),
-            ))
+            Self::parse_command(&tokens)
+            // Err(ParseError::InvalidSyntax(
+            //     "No assignment operator found: expected format 'x = value' or 'x = y?'".to_string(),
+            // ))
         }
+    }
+
+    fn parse_command(tokens: &[Token]) -> Result<Statement, ParseError> {
+        let cmd_name = if let TokenKind::Identifier(name) = &tokens[0].kind {
+            name.as_str()
+        } else {
+            return Err(ParseError::InvalidSyntax("Not a command".to_string()));
+        };
+
+        // Find command specification
+        let (name, args_count) = Self::COMMANDS
+            .iter()
+            .find(|(cmd, _)| *cmd == cmd_name)
+            .copied()
+            .ok_or_else(|| ParseError::InvalidSyntax("Not a command".to_string()))?;
+
+        // Validate argument count
+        if args_count != tokens.len() - 1 {
+            return Err(ParseError::InvalidSyntax(format!(
+                "'{}' requires at least {} argument(s)",
+                name, args_count,
+            )));
+        }
+
+        let args = tokens[1..].iter().map(|s| s.to_string()).collect();
+        Ok(Statement::Command {
+            name: name.to_string(),
+            args,
+        })
     }
 
     fn find_equals_position(tokens: &[Token]) -> Option<usize> {

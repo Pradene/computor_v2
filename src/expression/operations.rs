@@ -341,7 +341,7 @@ impl Mul for Expression {
                             let right = b[k * b_cols + j].clone();
 
                             let product = left.mul(right)?;
-                            sum = sum.add(product)?.reduce()?;
+                            sum = sum.add(product)?.simplify()?;
                         }
 
                         result.push(sum);
@@ -369,7 +369,7 @@ impl Mul for Expression {
                         let product = left.mul(right)?;
                         sum = sum.add(product)?;
                     }
-                    result.push(sum.reduce()?);
+                    result.push(sum.simplify()?);
                 }
                 Ok(Expression::Vector(result))
             }
@@ -528,7 +528,7 @@ impl Expression {
                 let result: Result<Vec<Expression>, _> = a
                     .iter()
                     .zip(b.iter())
-                    .map(|(x, y)| x.clone().mul(y.clone())?.reduce())
+                    .map(|(x, y)| x.clone().mul(y.clone())?.simplify())
                     .collect();
                 Ok(Expression::Matrix(result?, a_rows, a_cols))
             }

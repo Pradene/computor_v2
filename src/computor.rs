@@ -1,8 +1,7 @@
 use {
-    crate::error::{ComputorError, EvaluationError},
+    crate::error::EvaluationError,
     crate::expression::builtin::BuiltinFunction,
     crate::expression::Expression,
-    crate::parser::Parser,
     std::collections::{HashMap, HashSet},
     std::fmt,
     std::ops::Sub,
@@ -10,6 +9,7 @@ use {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
+    Command { name: String, args: Vec<String> },
     Assignment { name: String, value: Symbol },
     Equation { left: Expression, right: Expression },
     Query { expression: Expression },
@@ -27,11 +27,16 @@ impl fmt::Display for EquationSolution {
         match self {
             EquationSolution::NoSolution => write!(f, "No solution")?,
             EquationSolution::Infinite => write!(f, "Infinite solution (equality)")?,
-            EquationSolution::Finite(roots) => {
-                for (index, root) in roots.iter().enumerate() {
-                    write!(f, "{}{}", if index == 0 { "" } else { ", " }, root)?;
+            EquationSolution::Finite(roots) => match roots.len() {
+                1 => write!(f, "The solution is: {}", roots.iter().next().unwrap())?,
+                2 => {
+                    write!(f, "The solution are: ")?;
+                    for (index, root) in roots.iter().enumerate() {
+                        write!(f, "{}{}", if index == 0 { "" } else { ", " }, root)?;
+                    }
                 }
-            }
+                _ => unreachable!(),
+            },
         }
 
         Ok(())
@@ -90,17 +95,17 @@ impl fmt::Display for Symbol {
 }
 
 #[derive(Debug, Clone)]
-pub struct Context {
+pub struct Computor {
     table: HashMap<String, Symbol>,
 }
 
-impl Default for Context {
+impl Default for Computor {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl fmt::Display for Context {
+impl fmt::Display for Computor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (_, value) in self.table.iter() {
             match value {
@@ -126,7 +131,7 @@ impl fmt::Display for Context {
     }
 }
 
-impl Context {
+impl Computor {
     pub fn new() -> Self {
         const BUILTINS: &[BuiltinFunction] = &[
             BuiltinFunction::Rad,
@@ -146,42 +151,18 @@ impl Context {
             .map(|f| (f.name().to_string(), Symbol::BuiltinFunction(f.clone())))
             .collect();
 
-        Context { table }
-    }
-
-    pub fn compute(&mut self, line: &str) -> Result<StatementResult, ComputorError> {
-        let statement = Parser::parse(line).map_err(|e| ComputorError::Parsing(e.to_string()))?;
-        let result = self.execute(statement).map_err(ComputorError::Evaluation)?;
-
-        Ok(result)
+        Computor { table }
     }
 
     pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
         self.table.get(name.to_ascii_lowercase().as_str())
     }
 
-    pub fn execute(&mut self, statement: Statement) -> Result<StatementResult, EvaluationError> {
-        match statement {
-            Statement::Assignment { name, value } => {
-                let result = self.assign(name, value)?;
-                Ok(StatementResult::Value(result))
-            }
-            Statement::Query { expression } => {
-                let result = self.evaluate_expression(&expression)?;
-                Ok(StatementResult::Value(result))
-            }
-            Statement::Equation { left, right } => {
-                let result = self.evaluate_equation(&left, &right)?;
-                Ok(StatementResult::Solution(result))
-            }
-        }
-    }
-
     pub fn evaluate_expression(
         &self,
         expression: &Expression,
     ) -> Result<Expression, EvaluationError> {
-        expression.evaluate(self)?.reduce()
+        expression.evaluate(self)?.simplify()
     }
 
     pub fn evaluate_equation(
@@ -189,8 +170,8 @@ impl Context {
         left: &Expression,
         right: &Expression,
     ) -> Result<EquationSolution, EvaluationError> {
-        let left = left.reduce()?;
-        let right = right.reduce()?;
+        let left = left.simplify()?;
+        let right = right.simplify()?;
         let expression = self.evaluate_expression(&left.sub(right)?)?;
 
         if expression.is_zero() {
@@ -227,7 +208,7 @@ impl Context {
         self.table.insert(name, symbol);
 
         // Evaluate to show the current value, but don't store it
-        expression.evaluate(self)?.reduce()
+        expression.evaluate(self)?.simplify()
     }
 
     /// Detects circular dependencies like: a = b, then b = a
