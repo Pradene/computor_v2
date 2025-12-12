@@ -1,4 +1,4 @@
-use crate::computor::{Statement, Variable};
+use crate::computor::Variable;
 use crate::tokenizer::{Token, TokenKind, Tokenizer};
 
 use crate::computor::{FunctionDefinition, Symbol};
@@ -7,11 +7,19 @@ use crate::expression::Expression;
 
 pub struct Parser;
 
+#[derive(Debug, Clone)]
+pub enum Instruction {
+    Command { name: String, args: Vec<String> },
+    Assignment { name: String, value: Symbol },
+    Equation { left: Expression, right: Expression },
+    Query { expression: Expression },
+}
+
 impl Parser {
     const COMMANDS: &'static [(&'static str, usize)] =
         &[("quit", 0), ("clear", 0), ("table", 0), ("unset", 1)];
 
-    pub fn parse(line: &str) -> Result<Statement, ParseError> {
+    pub fn parse(line: &str) -> Result<Instruction, ParseError> {
         let tokens = Tokenizer::tokenize(line)?;
 
         if tokens.is_empty() {
@@ -39,13 +47,13 @@ impl Parser {
             {
                 if right_tokens.len() == 1 {
                     let expression = Self::parse_expression_from_tokens(left_tokens)?;
-                    Ok(Statement::Query { expression })
+                    Ok(Instruction::Query { expression })
                 } else {
                     let left = Self::parse_expression_from_tokens(left_tokens)?;
                     let right = Self::parse_expression_from_tokens(
                         &right_tokens[..right_tokens.len() - 1],
                     )?;
-                    Ok(Statement::Equation { left, right })
+                    Ok(Instruction::Equation { left, right })
                 }
             } else {
                 // Handle assignment
@@ -59,7 +67,7 @@ impl Parser {
         }
     }
 
-    fn parse_command(tokens: &[Token]) -> Result<Statement, ParseError> {
+    fn parse_command(tokens: &[Token]) -> Result<Instruction, ParseError> {
         let cmd_name = if let TokenKind::Identifier(name) = &tokens[0].kind {
             name.as_str()
         } else {
@@ -82,7 +90,7 @@ impl Parser {
         }
 
         let args = tokens[1..].iter().map(|s| s.to_string()).collect();
-        Ok(Statement::Command {
+        Ok(Instruction::Command {
             name: name.to_string(),
             args,
         })
@@ -95,7 +103,7 @@ impl Parser {
     fn parse_assignment(
         left_tokens: &[Token],
         right_tokens: &[Token],
-    ) -> Result<Statement, ParseError> {
+    ) -> Result<Instruction, ParseError> {
         if left_tokens.is_empty() {
             return Err(ParseError::InvalidSyntax(
                 "Missing variable name: the left side of '=' must start with a variable name"
@@ -126,7 +134,7 @@ impl Parser {
                 params,
                 body,
             });
-            Ok(Statement::Assignment { name, value })
+            Ok(Instruction::Assignment { name, value })
         } else if left_tokens.len() == 1 {
             // Simple assignment: x = ...
             let name = match &left_tokens[0].kind {
@@ -138,7 +146,7 @@ impl Parser {
             }?;
 
             let expression = Self::parse_expression_from_tokens(right_tokens)?;
-            Ok(Statement::Assignment {
+            Ok(Instruction::Assignment {
                 name: name.clone(),
                 value: Symbol::Variable(Variable { name, expression }),
             })

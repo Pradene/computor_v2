@@ -1,19 +1,14 @@
 use {
-    crate::error::EvaluationError,
-    crate::expression::builtin::BuiltinFunction,
-    crate::expression::Expression,
-    std::collections::{HashMap, HashSet},
-    std::fmt,
-    std::ops::Sub,
+    crate::{
+        error::EvaluationError,
+        expression::{builtin::BuiltinFunction, Expression},
+    },
+    std::{
+        collections::{HashMap, HashSet},
+        fmt,
+        ops::Sub,
+    },
 };
-
-#[derive(Debug, Clone)]
-pub enum Statement {
-    Command { name: String, args: Vec<String> },
-    Assignment { name: String, value: Symbol },
-    Equation { left: Expression, right: Expression },
-    Query { expression: Expression },
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EquationSolution {
@@ -44,17 +39,14 @@ impl fmt::Display for EquationSolution {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum StatementResult {
-    Value(Expression),
-    Solution(EquationSolution),
+pub struct EquationResult {
+    expression: Expression,
+    solution: EquationSolution,
 }
 
-impl fmt::Display for StatementResult {
+impl fmt::Display for EquationResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StatementResult::Value(value) => write!(f, "{}", value),
-            StatementResult::Solution(solution) => write!(f, "{}", solution),
-        }
+        write!(f, "{} = 0\n{}", self.expression, self.solution)
     }
 }
 
@@ -132,30 +124,26 @@ impl fmt::Display for Computor {
 }
 
 impl Computor {
-    pub fn new() -> Self {
-        const BUILTINS: &[BuiltinFunction] = &[
-            BuiltinFunction::Rad,
-            BuiltinFunction::Norm,
-            BuiltinFunction::Abs,
-            BuiltinFunction::Sqrt,
-            BuiltinFunction::Cos,
-            BuiltinFunction::Sin,
-            BuiltinFunction::Tan,
-            BuiltinFunction::Dot,
-            BuiltinFunction::Cross,
-            BuiltinFunction::Exp,
-        ];
+    const BUILTINS: &'static [BuiltinFunction] = &[
+        BuiltinFunction::Rad,
+        BuiltinFunction::Norm,
+        BuiltinFunction::Abs,
+        BuiltinFunction::Sqrt,
+        BuiltinFunction::Cos,
+        BuiltinFunction::Sin,
+        BuiltinFunction::Tan,
+        BuiltinFunction::Dot,
+        BuiltinFunction::Cross,
+        BuiltinFunction::Exp,
+    ];
 
-        let table = BUILTINS
+    pub fn new() -> Self {
+        let table = Self::BUILTINS
             .iter()
             .map(|f| (f.name().to_string(), Symbol::BuiltinFunction(f.clone())))
             .collect();
 
         Computor { table }
-    }
-
-    pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.table.get(name.to_ascii_lowercase().as_str())
     }
 
     pub fn evaluate_expression(
@@ -169,20 +157,32 @@ impl Computor {
         &self,
         left: &Expression,
         right: &Expression,
-    ) -> Result<EquationSolution, EvaluationError> {
+    ) -> Result<EquationResult, EvaluationError> {
         let left = left.simplify()?;
         let right = right.simplify()?;
         let expression = self.evaluate_expression(&left.sub(right)?)?;
 
         if expression.is_zero() {
-            return Ok(EquationSolution::Infinite);
+            return Ok(EquationResult {
+                expression,
+                solution: EquationSolution::Infinite,
+            });
         }
 
         let roots = expression.find_roots()?;
         match roots.len() {
-            0 => Ok(EquationSolution::NoSolution),
-            1 => Ok(EquationSolution::Finite(roots)),
-            2 => Ok(EquationSolution::Finite(roots)),
+            0 => Ok(EquationResult {
+                expression,
+                solution: EquationSolution::NoSolution,
+            }),
+            1 => Ok(EquationResult {
+                expression,
+                solution: EquationSolution::Finite(roots),
+            }),
+            2 => Ok(EquationResult {
+                expression,
+                solution: EquationSolution::Finite(roots),
+            }),
             _ => unreachable!(),
         }
     }
@@ -414,5 +414,9 @@ impl Computor {
 
     pub fn unset(&mut self, name: &str) -> Option<Symbol> {
         self.table.remove(name.to_ascii_lowercase().as_str())
+    }
+
+    pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
+        self.table.get(name.to_ascii_lowercase().as_str())
     }
 }

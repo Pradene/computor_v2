@@ -1,7 +1,7 @@
 use {
     computor_v2::{
-        computor::{Computor, Statement},
-        parser::Parser,
+        computor::Computor,
+        parser::{Instruction, Parser},
     },
     rustyline::{error::ReadlineError, Config, Editor, Result as RustylineResult},
     std::process::Command,
@@ -34,25 +34,25 @@ fn main() -> RustylineResult<()> {
                 };
 
                 match statement {
-                    Statement::Assignment { name, value } => {
+                    Instruction::Assignment { name, value } => {
                         match computor.assign(name, value) {
                             Ok(expression) => println!("{}", expression),
                             Err(error) => eprintln!("{}", error),
                         };
                     }
-                    Statement::Query { expression } => {
+                    Instruction::Query { expression } => {
                         match computor.evaluate_expression(&expression) {
                             Ok(expression) => println!("{}", expression),
                             Err(error) => eprintln!("{}", error),
                         };
                     }
-                    Statement::Equation { left, right } => {
+                    Instruction::Equation { left, right } => {
                         match computor.evaluate_equation(&left, &right) {
                             Ok(solution) => println!("{}", solution),
                             Err(error) => eprintln!("{}", error),
                         };
                     }
-                    Statement::Command { name, args } => match name.as_str() {
+                    Instruction::Command { name, args } => match name.as_str() {
                         "quit" => break,
                         "table" => print!("{}", computor),
                         "clear" => {
