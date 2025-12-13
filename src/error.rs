@@ -68,19 +68,3 @@ impl fmt::Display for EvaluationError {
         }
     }
 }
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ComputorError {
-    Parsing(String),
-    Evaluation(EvaluationError),
-}
-
-impl error::Error for ComputorError {}
-impl fmt::Display for ComputorError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ComputorError::Evaluation(e) => write!(f, "{}", e),
-            ComputorError::Parsing(e) => write!(f, "{}", e),
-        }
-    }
-}

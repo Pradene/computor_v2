@@ -60,10 +60,8 @@ impl Parser {
                 Self::parse_assignment(left_tokens, right_tokens)
             }
         } else {
+            // Handle command
             Self::parse_command(&tokens)
-            // Err(ParseError::InvalidSyntax(
-            //     "No assignment operator found: expected format 'x = value' or 'x = y?'".to_string(),
-            // ))
         }
     }
 
