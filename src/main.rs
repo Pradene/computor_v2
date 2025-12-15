@@ -25,6 +25,8 @@ fn main() -> RustylineResult<()> {
                     continue;
                 }
 
+                reader.add_history_entry(line)?;
+
                 let statement = match Parser::parse(line) {
                     Ok(stmt) => stmt,
                     Err(e) => {
@@ -66,8 +68,6 @@ fn main() -> RustylineResult<()> {
                         _ => eprintln!("Not a valid command"),
                     },
                 };
-
-                reader.add_history_entry(line)?;
             }
             Err(ReadlineError::Interrupted) => {
                 eprintln!("Ctrl-C");
