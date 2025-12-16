@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
-use crate::{constant::EPSILON, expression::Expression};
+use crate::expression::Expression;
 
 impl Expression {
     pub fn is_zero(&self) -> bool {
         match self {
-            Expression::Real(n) => n.abs() < EPSILON,
-            Expression::Complex(r, i) => r.abs() < EPSILON && i.abs() < EPSILON,
+            Expression::Real(n) => n.abs() < f64::EPSILON,
+            Expression::Complex(r, i) => r.abs() < f64::EPSILON && i.abs() < f64::EPSILON,
             _ => false,
         }
     }
@@ -24,7 +24,7 @@ impl Expression {
     pub fn is_real(&self) -> bool {
         match self {
             Expression::Real(_) => true,
-            Expression::Complex(_, i) => i.abs() < EPSILON,
+            Expression::Complex(_, i) => i.abs() < f64::EPSILON,
             _ => false,
         }
     }
@@ -64,11 +64,8 @@ impl Expression {
             | Expression::Div(left, right)
             | Expression::Mod(left, right)
             | Expression::Pow(left, right) => {
-                let var_left = left.collect_variables();
-                let var_right = right.collect_variables();
-
-                variables.extend(var_left);
-                variables.extend(var_right);
+                variables.extend(left.collect_variables());
+                variables.extend(right.collect_variables());
             }
             Expression::Neg(inner) => {
                 variables.extend(inner.collect_variables());

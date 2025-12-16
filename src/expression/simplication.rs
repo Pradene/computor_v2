@@ -1,5 +1,5 @@
 use {
-    crate::{constant::EPSILON, error::EvaluationError, expression::Expression},
+    crate::{error::EvaluationError, expression::Expression},
     std::{
         collections::{HashMap, HashSet},
         ops::{Add, Div, Mul, Neg, Rem, Sub},
@@ -202,13 +202,6 @@ impl Expression {
 
     fn collect_terms(&self) -> Result<Expression, EvaluationError> {
         match self {
-            Expression::Complex(real, imag) => {
-                if imag.abs() < EPSILON {
-                    Ok(Expression::Real(*real))
-                } else {
-                    Ok(self.clone())
-                }
-            }
             Expression::Add(..) | Expression::Sub(..) => {
                 let terms = self.extract_terms(1.0)?;
                 self.combine_like_terms(terms)
@@ -260,7 +253,6 @@ impl Expression {
             }
             Expression::Neg(inner) => inner.extract_terms(-sign),
             Expression::Real(n) => Ok(vec![Term::constant(sign * n)]),
-            Expression::Complex(r, i) if i.abs() < EPSILON => Ok(vec![Term::constant(sign * r)]),
             Expression::Mul(..) => {
                 let (coeff, expression) = self.extract_coefficient();
                 Ok(vec![Term::new(sign * coeff, expression)])
@@ -297,9 +289,6 @@ impl Expression {
             Expression::Real(n) => {
                 *coefficient *= n;
             }
-            Expression::Complex(r, i) if i.abs() < EPSILON => {
-                *coefficient *= r;
-            }
             Expression::Mul(left, right) => {
                 left.collect_multiplication_parts(coefficient, parts);
                 right.collect_multiplication_parts(coefficient, parts);
@@ -327,7 +316,7 @@ impl Expression {
         let mut negative_terms: Vec<Term> = Vec::new();
 
         for term in combined.into_values() {
-            if term.coefficient.abs() < EPSILON {
+            if term.coefficient.abs() < f64::EPSILON {
                 continue; // Skip zero terms
             }
 
@@ -420,24 +409,22 @@ impl Expression {
     }
 
     fn find_common_roots(roots1: &[Expression], roots2: &[Expression]) -> Vec<Expression> {
-        let tolerance = EPSILON;
         let mut common = Vec::new();
         let mut used_from_roots2 = vec![false; roots2.len()];
 
         for r1 in roots1 {
             for (idx, r2) in roots2.iter().enumerate() {
                 if !used_from_roots2[idx] {
-                    // Compare with tolerance
                     let equal = match (r1, r2) {
-                        (Expression::Real(a), Expression::Real(b)) => (a - b).abs() < tolerance,
+                        (Expression::Real(a), Expression::Real(b)) => (a - b).abs() < f64::EPSILON,
                         (Expression::Complex(r1, i1), Expression::Complex(r2, i2)) => {
-                            (r1 - r2).abs() < tolerance && (i1 - i2).abs() < tolerance
+                            (r1 - r2).abs() < f64::EPSILON && (i1 - i2).abs() < f64::EPSILON
                         }
                         (Expression::Real(a), Expression::Complex(r, i)) => {
-                            (a - r).abs() < tolerance && i.abs() < tolerance
+                            (a - r).abs() < f64::EPSILON && i.abs() < f64::EPSILON
                         }
                         (Expression::Complex(r, i), Expression::Real(a)) => {
-                            (r - a).abs() < tolerance && i.abs() < tolerance
+                            (r - a).abs() < f64::EPSILON && i.abs() < f64::EPSILON
                         }
                         _ => false,
                     };
@@ -569,9 +556,9 @@ impl Expression {
         for remove_root in roots_to_remove {
             // Find and remove matching root
             if let Some(pos) = remaining.iter().position(|r| match (r, remove_root) {
-                (Expression::Real(a), Expression::Real(b)) => (a - b).abs() < EPSILON,
+                (Expression::Real(a), Expression::Real(b)) => (a - b).abs() < f64::EPSILON,
                 (Expression::Complex(r1, i1), Expression::Complex(r2, i2)) => {
-                    (r1 - r2).abs() < EPSILON && (i1 - i2).abs() < EPSILON
+                    (r1 - r2).abs() < f64::EPSILON && (i1 - i2).abs() < f64::EPSILON
                 }
                 _ => false,
             }) {
@@ -625,19 +612,19 @@ impl Term {
     fn to_expression(&self) -> Expression {
         let coeff_abs = self.coefficient.abs();
 
-        if coeff_abs < EPSILON {
+        if coeff_abs < f64::EPSILON {
             return Expression::Real(0.0);
         }
 
         // Check if expression is just the constant 1.0
-        if matches!(self.expression, Expression::Real(n) if (n - 1.0).abs() < EPSILON) {
+        if matches!(self.expression, Expression::Real(n) if (n - 1.0).abs() < f64::EPSILON) {
             return Expression::Real(self.coefficient);
         }
 
         let abs_coeff = self.coefficient.abs();
         let is_negative = self.coefficient < 0.0;
 
-        let base_expr = if (abs_coeff - 1.0).abs() < EPSILON {
+        let base_expr = if (abs_coeff - 1.0).abs() < f64::EPSILON {
             // Coefficient is ±1, just return the expression (or its negation)
             self.expression.clone()
         } else {

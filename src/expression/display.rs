@@ -1,7 +1,4 @@
-use {
-    crate::{constant::EPSILON, expression::Expression},
-    std::fmt,
-};
+use {crate::expression::Expression, std::fmt};
 
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -10,11 +7,11 @@ impl fmt::Display for Expression {
                 write!(f, "{}", n)?;
             }
             Expression::Complex(real, imag) => {
-                if real.abs() < EPSILON && imag.abs() < EPSILON {
+                if real.abs() < f64::EPSILON && imag.abs() < f64::EPSILON {
                     write!(f, "0")?;
-                } else if real.abs() < EPSILON {
+                } else if real.abs() < f64::EPSILON {
                     write!(f, "{}i", imag)?;
-                } else if imag.abs() < EPSILON {
+                } else if imag.abs() < f64::EPSILON {
                     write!(f, "{}", real)?;
                 } else if *imag >= 0.0 {
                     write!(f, "{} + {}i", real, imag)?;

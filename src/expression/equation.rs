@@ -1,5 +1,5 @@
 use {
-    crate::{constant::EPSILON, error::EvaluationError, expression::Expression},
+    crate::{error::EvaluationError, expression::Expression},
     std::collections::HashMap,
     std::ops::{Add, Mul, Neg},
 };
@@ -36,7 +36,6 @@ impl Expression {
             .iter()
             .filter_map(|(deg, expr)| match expr {
                 Expression::Real(n) => Some((*deg, *n)),
-                Expression::Complex(r, i) if i.abs() < EPSILON => Some((*deg, *r)),
                 _ => None,
             })
             .collect();
@@ -71,7 +70,7 @@ impl Expression {
         let a = coefficients.get(&1).copied().unwrap_or(0.0);
         let b = coefficients.get(&0).copied().unwrap_or(0.0);
 
-        if a.abs() < EPSILON {
+        if a == 0.0 {
             return self.solve_degree_0();
         }
 
@@ -87,38 +86,39 @@ impl Expression {
         let b = coefficients.get(&1).copied().unwrap_or(0.0);
         let c = coefficients.get(&0).copied().unwrap_or(0.0);
 
-        if a.abs() < EPSILON {
+        if a == 0.0 {
             return self.solve_degree_1(coefficients);
         }
 
         let discriminant = b * b - 4.0 * a * c;
 
-        Ok(if discriminant > EPSILON {
+        let roots = if discriminant > 0.0 {
             let sqrt_discriminant = discriminant.sqrt();
-            let x1 = (-b + sqrt_discriminant) / (2.0 * a);
-            let x2 = (-b - sqrt_discriminant) / (2.0 * a);
 
-            let x1 = if x1.abs() < EPSILON { 0.0 } else { x1 };
-            let x2 = if x2.abs() < EPSILON { 0.0 } else { x2 };
+            let x1 = if b >= 0.0 {
+                (-b - sqrt_discriminant) / (2.0 * a)
+            } else {
+                (-b + sqrt_discriminant) / (2.0 * a)
+            };
+
+            let x2 = c / (a * x1);
 
             vec![Expression::Real(x1), Expression::Real(x2)]
-        } else if discriminant.abs() < EPSILON {
+        } else if discriminant == 0.0 {
             let x = -b / (2.0 * a);
-            let x = if x.abs() < EPSILON { 0.0 } else { x };
 
             vec![Expression::Real(x), Expression::Real(x)]
         } else {
             let real = -b / (2.0 * a);
             let imag = (-discriminant).sqrt() / (2.0 * a);
 
-            let real = if real.abs() < EPSILON { 0.0 } else { real };
-            let imag = if imag.abs() < EPSILON { 0.0 } else { imag };
-
             vec![
                 Expression::Complex(real, imag),
                 Expression::Complex(real, -imag),
             ]
-        })
+        };
+
+        Ok(roots)
     }
 
     fn collect_polynomial_coefficients(
