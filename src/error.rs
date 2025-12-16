@@ -11,20 +11,24 @@ pub enum ParseError {
     InvalidMatrix(String),
     InvalidVector(String),
     Overflow(String),
+    MissingExpression(String),
+    UnbalancedParentheses(String),
 }
 
 impl error::Error for ParseError {}
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ParseError::InvalidSyntax(msg) => write!(f, "Invalid syntax: {}", msg),
-            ParseError::UnexpectedToken(token) => write!(f, "Unexpected token: {}", token),
+            ParseError::InvalidSyntax(msg) => write!(f, "Syntax error: {}", msg),
+            ParseError::UnexpectedToken(token) => write!(f, "Unexpected token: '{}'", token),
             ParseError::UnexpectedEof => write!(f, "Unexpected end of input"),
-            ParseError::DuplicateParameter(msg) => write!(f, "Invalid parameter: {}", msg),
+            ParseError::DuplicateParameter(msg) => write!(f, "Duplicate parameter: {}", msg),
             ParseError::InvalidNumber(num) => write!(f, "Invalid number: {}", num),
-            ParseError::InvalidMatrix(msg) => write!(f, "Invalid matrix: {}", msg),
-            ParseError::InvalidVector(msg) => write!(f, "Invalid vector: {}", msg),
-            ParseError::Overflow(msg) => write!(f, "Number overflow: {}", msg),
+            ParseError::InvalidMatrix(msg) => write!(f, "Matrix error: {}", msg),
+            ParseError::InvalidVector(msg) => write!(f, "Vector error: {}", msg),
+            ParseError::Overflow(msg) => write!(f, "Overflow: {}", msg),
+            ParseError::MissingExpression(msg) => write!(f, "Missing expression: {}", msg),
+            ParseError::UnbalancedParentheses(msg) => write!(f, "Parentheses: {}", msg),
         }
     }
 }
@@ -42,20 +46,26 @@ pub enum EvaluationError {
     InvalidOperation(String),
     UnsupportedOperation(String),
     CannotOverrideBuiltin(String),
+    DimensionMismatch(String),
+    TypeMismatch(String),
 }
 
 impl error::Error for EvaluationError {}
 impl fmt::Display for EvaluationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            EvaluationError::UndefinedVariable(name) => write!(f, "Undefined variable: {}", name),
-            EvaluationError::UndefinedFunction(name) => write!(f, "Undefined function: {}", name),
+            EvaluationError::UndefinedVariable(name) => write!(f, "Undefined variable '{}'", name),
+            EvaluationError::UndefinedFunction(name) => write!(f, "Undefined function '{}'", name),
             EvaluationError::WrongArgumentCount {
                 name,
                 expected,
                 got,
             } => {
-                write!(f, "{} expect {} arguments, got {}", name, expected, got)
+                write!(
+                    f,
+                    "Function '{}' expects {} arguments, got {}",
+                    name, expected, got
+                )
             }
             EvaluationError::DivisionByZero => write!(f, "Division by zero"),
             EvaluationError::InvalidOperation(msg) => write!(f, "Invalid operation: {}", msg),
@@ -63,8 +73,10 @@ impl fmt::Display for EvaluationError {
                 write!(f, "Unsupported operation: {}", msg)
             }
             EvaluationError::CannotOverrideBuiltin(msg) => {
-                write!(f, "Cannot override builtin function: {}", msg)
+                write!(f, "Cannot override built-in: {}", msg)
             }
+            EvaluationError::DimensionMismatch(msg) => write!(f, "Dimension mismatch: {}", msg),
+            EvaluationError::TypeMismatch(msg) => write!(f, "Type mismatch: {}", msg),
         }
     }
 }
