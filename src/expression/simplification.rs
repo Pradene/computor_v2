@@ -1,5 +1,5 @@
 use {
-    crate::{error::EvaluationError, expression::Expression},
+    crate::{error::EvaluationError, expression::Expression, types::polynomial},
     std::{
         collections::{HashMap, HashSet},
         ops::{Add, Div, Mul, Neg, Rem, Sub},
@@ -371,8 +371,8 @@ impl Expression {
 
         let var = variables.iter().next().unwrap().clone();
 
-        let num_coeffs = Self::collect_polynomial_coeffs(numerator, &var)?;
-        let den_coeffs = Self::collect_polynomial_coeffs(denominator, &var)?;
+        let num_coeffs = polynomial::collect_coefficients(numerator, &var)?;
+        let den_coeffs = polynomial::collect_coefficients(denominator, &var)?;
 
         // Only handle simple cases (degree 0-2)
         let num_degree = num_coeffs.keys().max().copied().unwrap_or(0);
@@ -386,8 +386,8 @@ impl Expression {
         let num_roots = numerator.find_roots()?;
         let den_roots = denominator.find_roots()?;
 
-        // Find common roots (with tolerance for floating point)
-        let common_roots = Self::find_common_roots(num_roots.as_slice(), den_roots.as_slice());
+        let common_roots =
+            polynomial::find_common_roots(num_roots.as_slice(), den_roots.as_slice());
 
         if common_roots.is_empty() {
             // No common roots, can't simplify
@@ -408,146 +408,11 @@ impl Expression {
         }
     }
 
-    fn find_common_roots(roots1: &[Expression], roots2: &[Expression]) -> Vec<Expression> {
-        let mut common = Vec::new();
-        let mut used_from_roots2 = vec![false; roots2.len()];
-
-        for r1 in roots1 {
-            for (idx, r2) in roots2.iter().enumerate() {
-                if !used_from_roots2[idx] {
-                    let equal = match (r1, r2) {
-                        (Expression::Real(a), Expression::Real(b)) => (a - b).abs() < f64::EPSILON,
-                        (Expression::Complex(r1, i1), Expression::Complex(r2, i2)) => {
-                            (r1 - r2).abs() < f64::EPSILON && (i1 - i2).abs() < f64::EPSILON
-                        }
-                        (Expression::Real(a), Expression::Complex(r, i)) => {
-                            (a - r).abs() < f64::EPSILON && i.abs() < f64::EPSILON
-                        }
-                        (Expression::Complex(r, i), Expression::Real(a)) => {
-                            (r - a).abs() < f64::EPSILON && i.abs() < f64::EPSILON
-                        }
-                        _ => false,
-                    };
-
-                    if equal {
-                        common.push(r1.clone());
-                        used_from_roots2[idx] = true;
-                        break; // Only match this root once
-                    }
-                }
-            }
-        }
-
-        common
-    }
-
-    /// Extract polynomial coefficients for a given variable
-    fn collect_polynomial_coeffs(
-        expr: &Expression,
-        var: &str,
-    ) -> Result<HashMap<i32, f64>, EvaluationError> {
-        let mut coeffs = HashMap::new();
-        let mut stack: Vec<(&Expression, f64)> = vec![(expr, 1.0)];
-
-        while let Some((expr, sign)) = stack.pop() {
-            match expr {
-                Expression::Real(n) => {
-                    coeffs
-                        .entry(0)
-                        .and_modify(|c| *c += sign * n)
-                        .or_insert(sign * n);
-                }
-
-                Expression::Variable(name) if name == var => {
-                    coeffs.entry(1).and_modify(|c| *c += sign).or_insert(sign);
-                }
-
-                Expression::Paren(inner) => {
-                    stack.push((inner, sign));
-                }
-
-                Expression::Neg(inner) => {
-                    stack.push((inner, -sign));
-                }
-
-                Expression::Add(left, right) => {
-                    stack.push((left, sign));
-                    stack.push((right, sign));
-                }
-
-                Expression::Sub(left, right) => {
-                    stack.push((left, sign));
-                    stack.push((right, -sign));
-                }
-
-                Expression::Mul(left, right) => {
-                    // Unwrap parentheses
-                    let left_unwrapped = match left.as_ref() {
-                        Expression::Paren(inner) => inner.as_ref(),
-                        other => other,
-                    };
-                    let right_unwrapped = match right.as_ref() {
-                        Expression::Paren(inner) => inner.as_ref(),
-                        other => other,
-                    };
-
-                    // const * var
-                    if let (Expression::Real(c), Expression::Variable(name)) =
-                        (left_unwrapped, right_unwrapped)
-                    {
-                        if name == var {
-                            coeffs
-                                .entry(1)
-                                .and_modify(|c0| *c0 += sign * c)
-                                .or_insert(sign * c);
-                            continue;
-                        }
-                    }
-
-                    // var * const
-                    if let (Expression::Variable(name), Expression::Real(c)) =
-                        (left_unwrapped, right_unwrapped)
-                    {
-                        if name == var {
-                            coeffs
-                                .entry(1)
-                                .and_modify(|c0| *c0 += sign * c)
-                                .or_insert(sign * c);
-                            continue;
-                        }
-                    }
-
-                    // Other multiplications are ignored as non-polynomial
-                }
-
-                Expression::Pow(base, exp) => {
-                    let base_unwrapped = match base.as_ref() {
-                        Expression::Paren(inner) => inner.as_ref(),
-                        other => other,
-                    };
-
-                    if let (Expression::Variable(name), Expression::Real(e)) =
-                        (base_unwrapped, exp.as_ref())
-                    {
-                        if name == var && *e == 2.0 {
-                            coeffs.entry(2).and_modify(|c| *c += sign).or_insert(sign);
-                            continue;
-                        }
-                    }
-                }
-
-                _ => {}
-            }
-        }
-
-        Ok(coeffs)
-    }
-
     /// Rebuild polynomial without specific roots
     /// For roots [r1, r2], rebuild as (x - r1)(x - r2)...
     fn rebuild_polynomial(
-        all_roots: &Vec<Expression>,
-        roots_to_remove: &Vec<Expression>,
+        all_roots: &[Expression],
+        roots_to_remove: &[Expression],
         var: &str,
     ) -> Expression {
         let mut remaining = all_roots.to_vec();
