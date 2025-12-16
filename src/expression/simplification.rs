@@ -386,8 +386,7 @@ impl Expression {
         let num_roots = numerator.find_roots()?;
         let den_roots = denominator.find_roots()?;
 
-        let common_roots =
-            polynomial::find_common_roots(num_roots.as_slice(), den_roots.as_slice());
+        let common_roots = Self::find_common_roots(num_roots.as_slice(), den_roots.as_slice());
 
         if common_roots.is_empty() {
             // No common roots, can't simplify
@@ -406,6 +405,39 @@ impl Expression {
                 Box::new(simplified_den),
             ))
         }
+    }
+
+    /// Check if two roots are equal (with floating point tolerance)
+    pub fn roots_equal(r1: &Expression, r2: &Expression) -> bool {
+        match (r1, r2) {
+            (Expression::Real(a), Expression::Real(b)) => (a - b).abs() < f64::EPSILON,
+            (Expression::Complex(r1, i1), Expression::Complex(r2, i2)) => {
+                (r1 - r2).abs() < f64::EPSILON && (i1 - i2).abs() < f64::EPSILON
+            }
+            (Expression::Real(a), Expression::Complex(r, i))
+            | (Expression::Complex(r, i), Expression::Real(a)) => {
+                (a - r).abs() < f64::EPSILON && i.abs() < f64::EPSILON
+            }
+            _ => false,
+        }
+    }
+
+    /// Find roots that appear in both lists
+    pub fn find_common_roots(roots1: &[Expression], roots2: &[Expression]) -> Vec<Expression> {
+        let mut common = Vec::new();
+        let mut used = vec![false; roots2.len()];
+
+        for r1 in roots1 {
+            for (idx, r2) in roots2.iter().enumerate() {
+                if !used[idx] && Self::roots_equal(r1, r2) {
+                    common.push(r1.clone());
+                    used[idx] = true;
+                    break;
+                }
+            }
+        }
+
+        common
     }
 
     /// Rebuild polynomial without specific roots
