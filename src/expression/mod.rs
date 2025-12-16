@@ -1,6 +1,5 @@
 pub mod builtin;
 pub mod display;
-pub mod equation;
 pub mod evaluation;
 pub mod operations;
 pub mod simplification;
